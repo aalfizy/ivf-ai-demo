@@ -10,6 +10,7 @@ import {
 } from "@/lib/session";
 import { predict } from "@/lib/prediction";
 import type { Answers, ConfidenceLevel } from "@/lib/types";
+import HopeNote from "./HopeNote";
 
 type ConsentState = "idle" | "sending" | "sent";
 
@@ -87,6 +88,10 @@ export default function ReportView() {
 
       <article className="glass rounded-3xl p-6 sm:p-10 shadow-soft animate-fade-in-up print:shadow-none print:bg-white">
         <ReportHeader />
+
+        <div className="mb-6">
+          <HopeNote variant="intro" />
+        </div>
 
         <PredictionHero
           low={p.low}
@@ -473,20 +478,23 @@ function ConsentBox({
 }) {
   if (state === "sent") {
     return (
-      <div className="rounded-2xl border border-mint-200 bg-mint-50 p-5 text-ink-800 animate-fade-in-up">
-        <div className="flex items-start gap-3">
-          <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-mint-500 text-white">
-            ✓
-          </div>
-          <div>
-            <p className="font-semibold text-mint-700">
-              تم إرسال البيانات وسيتم التواصل معك قريبًا
-            </p>
-            <p className="text-sm text-ink-600 mt-1">
-              شكراً لثقتك، فريق المركز هيتواصل معاكي خلال وقت قصير إن شاء الله.
-            </p>
+      <div className="space-y-3 animate-fade-in-up">
+        <div className="rounded-2xl border border-mint-200 bg-mint-50 p-5 text-ink-800">
+          <div className="flex items-start gap-3">
+            <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-mint-500 text-white">
+              ✓
+            </div>
+            <div>
+              <p className="font-semibold text-mint-700">
+                تم إرسال البيانات وسيتم التواصل معك قريبًا
+              </p>
+              <p className="text-sm text-ink-600 mt-1">
+                شكراً لثقتك. فريق المركز هيتواصل معاكي خلال وقت قصير إن شاء الله.
+              </p>
+            </div>
           </div>
         </div>
+        <HopeNote variant="closing" />
       </div>
     );
   }
