@@ -42,14 +42,16 @@ export function intro(): { text: string; next: StepId } {
  */
 function buildSummarySpeech(answers: Answers): string {
   const r = predict(answers);
+  // Short adjective phrases — the lead-in noun "نسبة نجاح الحالة" is
+  // composed once in the speech template below to avoid awkward repetition.
   const categoryPhrase =
     r.category === "مرتفعة"
-      ? "نسبة نجاح مرتفعة"
+      ? "مرتفعة"
       : r.category === "جيدة"
-      ? "نسبة نجاح جيدة"
+      ? "كويسة"
       : r.category === "متوسطة"
-      ? "نسبة نجاح متوسطة"
-      : "نسبة نجاح منخفضة نسبياً";
+      ? "متوسطة"
+      : "منخفضة نسبياً";
 
   const confPhrase =
     r.confidence === "high"
@@ -63,10 +65,12 @@ function buildSummarySpeech(answers: Answers): string {
       ? "بناءً على كلامك من غير تحاليل مرفوعة"
       : "بناءً على كلامك والملفات المرفوعة";
 
+  // Short sentences split by "…" so the TTS layer adds natural breaths.
   return (
-    `${lead}، نقدر نقول إن الحالة احتمالية نجاحها ${categoryPhrase} ` +
-    `ما بين ${r.low} بالمية و ${r.high} بالمية. ${confPhrase}. ` +
-    `وده تقييم مبدئي فقط ولا يغني عن زيارة الطبيب المختص. ` +
+    `${lead}… نقدر نقول إن نسبة نجاح الحالة ${categoryPhrase}. ` +
+    `ما بين ${r.low} بالمية و ${r.high} بالمية. ` +
+    `${confPhrase}. ` +
+    `ده تقييم مبدئي فقط ولا يغني عن زيارة الطبيب المختص. ` +
     `تحبي نبعت التقرير للمركز عشان حد يتواصل معاكي؟`
   );
 }
@@ -98,7 +102,7 @@ export function handleAnswer(
       else if (answers.age < 40) reaction = "تمام، مفهوم.";
       else reaction = "تمام، هناخد بالنا من عامل السن.";
       return {
-        assistant: `${ack()}… ${reaction} وبقالك قد إيه بتحاولي تحملي؟ بالسنين لو سمحتي.`,
+        assistant: `${ack()}… ${reaction} وبقالك قد إيه بتحاولي تِحْمَلي؟ بالسنين لو سمحتي.`,
         next: "duration",
         answers,
         autoListen: true,
@@ -133,7 +137,7 @@ export function handleAnswer(
       if (c === "unclear") {
         return {
           assistant:
-            "معلش، الدورة بتيجي منتظمة كل شهر ولا لأ؟ جاوبي بـ نعم أو لا.",
+            "معلش… الدورة بتيجي منتظمة كل شهر ولا لأ؟ قوليلي أيوه أو لأ.",
           next: "cycle",
           answers,
           autoListen: true,
@@ -144,7 +148,7 @@ export function handleAnswer(
         ? "تمام، ده مؤشر كويس."
         : "ماشي، خدنا بالنا من النقطة دي.";
       return {
-        assistant: `${followup} هل عندك أي مشاكل هرمونية أو تكيس في المبايض؟`,
+        assistant: `${followup} هل عندك أي مشاكل هرمونية أو تَكَيُسْ في المبايض؟`,
         next: "hormonal",
         answers,
         autoListen: true,
@@ -162,7 +166,7 @@ export function handleAnswer(
       if (c === "unclear" && !mentionsPCOS && !isUnknown(userText)) {
         return {
           assistant:
-            "يعني في مشاكل هرمونية أو تكيس مبايض؟ جاوبي بـ نعم أو لا.",
+            "يعني في مشاكل هرمونية أو تَكَيُسْ مبايض؟ قوليلي أيوه أو لأ.",
           next: "hormonal",
           answers,
           autoListen: true,
@@ -178,7 +182,7 @@ export function handleAnswer(
         answers.pcos = false;
       }
       return {
-        assistant: `${ack()}… هل عملتي تحليل AMH قبل كده؟ لو فاكرة الرقم قوليه، ولو لأ قولي "مش عارفة".`,
+        assistant: `${ack()}… هل عملتي تحليل AMH قبل كده؟ لو فاكره الرقم قوليه، ولو لأ قولي "مش عارفه".`,
         next: "amh",
         answers,
         autoListen: true,
@@ -192,7 +196,7 @@ export function handleAnswer(
       ) {
         answers.amh = "unknown";
         return {
-          assistant: `${ack()}، هنضيفه في التحاليل المقترحة. وبقالك محاولات حقن مجهري قبل كده؟ لو آه كام مرة؟`,
+          assistant: `${ack()}… هنضيفه في التحاليل المقترحة. وبقالك محاولات حَقْن مجهري قبل كده؟ لو آه كام مرة؟`,
           next: "previous_ivf",
           answers,
           autoListen: true,
@@ -214,7 +218,7 @@ export function handleAnswer(
       else if (n <= 4) reaction = "المخزون في النطاق الطبيعي، ده كويس.";
       else reaction = "القيمة مرتفعة شوية، ممكن تكون مؤشر لتكيس.";
       return {
-        assistant: `${reaction} وبقالك محاولات حقن مجهري قبل كده؟ لو آه كام مرة؟`,
+        assistant: `${reaction} وبقالك محاولات حَقْن مجهري قبل كده؟ لو آه كام مره؟`,
         next: "previous_ivf",
         answers,
         autoListen: true,
@@ -227,7 +231,7 @@ export function handleAnswer(
       if (c === "no" && (n === null || n === 0)) {
         answers.previous_ivf_count = 0;
         return {
-          assistant: `${ack()}، يعني أول محاولة بإذن الله. وهل حصل حمل قبل كده، حتى لو ما كملش؟`,
+          assistant: `${ack()}، يعني أول محاولة بإذن الله. وهل حصل حَمْل قبل كده، حتى لو ما كملش؟`,
           next: "previous_pregnancy",
           answers,
           autoListen: true,
@@ -251,10 +255,10 @@ export function handleAnswer(
         count === 0
           ? "تمام، أول محاولة."
           : count === 1
-          ? "ماشي، محاولة واحدة سابقة."
+          ? "ماشي، محاوله واحدة سابقة."
           : `تمام، ${count} محاولات سابقة.`;
       return {
-        assistant: `${reaction} وهل حصل حمل قبل كده، حتى لو ما كملش؟`,
+        assistant: `${reaction} وهل حصل حَمْل قبل كده، حتى لو ما كملش؟`,
         next: "previous_pregnancy",
         answers,
         autoListen: true,
@@ -265,7 +269,7 @@ export function handleAnswer(
       const c = classifyYesNo(userText);
       if (c === "unclear") {
         return {
-          assistant: "حصل حمل قبل كده ولا لأ؟",
+          assistant: "حصل حَمْل قبل كده ولا لأ؟",
           next: "previous_pregnancy",
           answers,
           autoListen: true,
@@ -276,7 +280,7 @@ export function handleAnswer(
         ? "كويس جداً، ده مؤشر إيجابي."
         : "ماشي، مفهوم.";
       return {
-        assistant: `${reaction} وآخر سؤال في الجزء ده: هل في عامل ذكري معروف عند الزوج؟ يعني تحليل سائل منوي بيقول في مشكلة؟`,
+        assistant: `${reaction} وآخر سؤال في الجزء ده… عند الزوج عامل ذكري معروف؟ يعني تحليل سائل مَنَوي فيه مشكله؟`,
         next: "male_factor",
         answers,
         autoListen: true,
@@ -290,7 +294,7 @@ export function handleAnswer(
       } else if (c === "unclear") {
         return {
           assistant:
-            "يعني في تحليل سائل منوي بيقول في مشكلة؟ نعم ولا لأ، ولو مش متأكدة قولي مش عارفة.",
+            "يعني تحليل السائل المَنَوي فيه مشكله؟ أيوه ولا لأ. ولو مش متأكدة قولي مش عارفه.",
           next: "male_factor",
           answers,
           autoListen: true,
@@ -300,9 +304,11 @@ export function handleAnswer(
       }
 
       // Transition into the upload step (NEVER jump straight to results).
+      // Long line split into 4 short utterances connected by "…" so the
+      // TTS layer renders natural breaths between ideas.
       return {
         assistant:
-          "تمام، شكراً ليكي. قبل ما نكمل، لو عندك أي تحاليل أو أشعة أو تقارير سابقة، تقدري ترفعيها دلوقتي عشان تساعدني أدي تقييم أدق. لو تحبي ترفعي أي فايل دلوقتي أنا معاكي. ولما تخلصي قوليلي 'خلصت' أو 'كده تمام'.",
+          "تمام، شكراً ليكي. قبل ما نكمل… لو عندك أي تحاليل أو أشعة أو تقارير سابقة، ارفعيها دلوقتي. ده هيخليني أدي تقييم أدق. ولما تخلصي قوليلي خلصت أو كده تمام.",
         next: "files",
         answers,
         autoListen: true,
@@ -332,7 +338,7 @@ export function handleAnswer(
         const speech = buildSummarySpeech(answers);
         return {
           assistant:
-            "ماشي، هنكمل من غير ملفات وهنوضح لك التحاليل المقترحة في التقرير. " +
+            "ماشي، هنكمل من غير ملفات وهنوضح لك التحاليل المقترحه في التقرير. " +
             speech,
           next: "consent",
           answers,
@@ -376,7 +382,7 @@ export function handleAnswer(
         };
       }
       return {
-        assistant: "تحبي نبعت التقرير للمركز؟ جاوبي بـ نعم أو لا.",
+        assistant: "تحبي نبعت التقرير للمركز؟ قوليلي أيوه أو لأ.",
         next: "consent",
         answers,
         autoListen: true,
@@ -397,9 +403,9 @@ export function handleAnswer(
 /** Spoken acknowledgement for each new file uploaded during the files step. */
 export function uploadAck(totalFiles: number): string {
   const lines = [
-    `تمام استلمت الملف. لو في حاجة تانية ترفعيها، أنا معاكي. ولو خلصتي قوليلي "خلصت".`,
+    `تمام استلمت الملف. لو في حاجه تانية ترفعيها، أنا معاكي. ولو خلصتي قوليلي "خلصت".`,
     `حلو، استلمت الملف. تقدري ترفعي تاني، أو قولي "كده تمام" لما نكمل.`,
-    `تمام، الملف وصلني. لو فيه تقارير تانية ارفعيها، ولما تخلصي قولي "خلصت".`,
+    `تمام، الملف وصلني. لو فيه تقارير تانيه ارفعيها، ولما تخلصي قولي "خلصت".`,
   ];
   const base = randomOf(lines);
   if (totalFiles >= 3) {

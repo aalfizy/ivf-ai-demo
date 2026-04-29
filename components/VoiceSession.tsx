@@ -106,6 +106,11 @@ export default function VoiceSession() {
 
   const speakAssistant = useCallback(
     async (text: string, autoListen: boolean) => {
+      // Per-sentence debug log — operators can tail the browser console
+      // during the demo to see exactly which line is being spoken.
+      console.log(
+        `[Assistant] step=${stateRef.current.step} autoListen=${autoListen}\n  > ${text}`
+      );
       pushMessage("assistant", text);
       setOrbState("speaking");
 
@@ -114,7 +119,6 @@ export default function VoiceSession() {
         const queued = pendingAckRef.current;
         pendingAckRef.current = null;
         if (queued) {
-          // Speak the ack, then auto-listen if needed
           setTimeout(() => speakAssistant(queued, autoListen), 250);
           return;
         }
@@ -123,13 +127,15 @@ export default function VoiceSession() {
       };
 
       if (stateRef.current.muted) {
+        console.log("[Assistant] muted — skipping TTS, advancing flow");
         setTimeout(finish, 600);
         return;
       }
 
       await speak(text, {
         lang: "ar-EG",
-        rate: 1.0,
+        // Slightly slower playback for Arabic clarity.
+        rate: 0.95,
         onEnd: finish,
         onError: finish,
       });

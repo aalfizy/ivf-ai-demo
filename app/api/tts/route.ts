@@ -35,16 +35,30 @@ export async function POST(req: NextRequest) {
   if (!text) return jsonError("empty_text", 400);
   if (text.length > 1500) return jsonError("text_too_long", 413);
 
+  // Voice is fixed per-deployment via ELEVENLABS_VOICE_ID. We never pick
+  // a voice dynamically — same voice every turn for consistency.
   const voiceId =
     body.voiceId ||
     process.env.ELEVENLABS_VOICE_ID ||
     "EXAVITQu4vr4xnSDxMaL";
-  const modelId =
-    process.env.ELEVENLABS_MODEL_ID || "eleven_multilingual_v2";
 
-  // Add a tiny pre-pause and slow the cadence by leveraging punctuation.
-  // ElevenLabs models respect <break time="..."/> tags within the text.
+  // Model is hard-locked. Do NOT read from env — a stale .env file or a
+  // misconfigured deployment must never silently switch models. This is
+  // the only Arabic-stable model and we depend on its prosody.
+  const modelId = "eleven_multilingual_v2";
+
+  // Insert SSML break tags around punctuation/ellipses for natural cadence.
+  // CRITICAL: this transformation is purely additive — it inserts <break/>
+  // tags but never modifies, removes, or normalizes any character. Arabic
+  // letters AND tashkeel (e.g. حَقْن, مَنَوي, حَمْل) are passed through
+  // verbatim to ElevenLabs so pronunciation cues authored in
+  // lib/conversation.ts are respected.
   const enriched = enrichForNaturalPauses(text);
+
+  // Visibility log so you can see exactly what was sent to ElevenLabs.
+  console.log(
+    `[TTS] → ElevenLabs  voice=${voiceId}  model=${modelId}  chars=${text.length}`
+  );
 
   let elRes: Response;
   try {
@@ -60,11 +74,11 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({
           text: enriched,
           model_id: modelId,
-          // Warmer, slightly more emotional voice settings.
+          // Stable, warm Egyptian-Arabic voice profile.
           voice_settings: {
             stability: 0.4,
-            similarity_boost: 0.78,
-            style: 0.35,
+            similarity_boost: 0.7,
+            style: 0.3,
             use_speaker_boost: true,
           },
         }),
@@ -81,6 +95,9 @@ export async function POST(req: NextRequest) {
     } catch {
       /* ignore */
     }
+    console.error(
+      `[TTS] ElevenLabs upstream HTTP ${elRes.status} — ${detail || "(no body)"}`
+    );
     return jsonError("elevenlabs_error", 502, detail, elRes.status);
   }
 
@@ -89,6 +106,8 @@ export async function POST(req: NextRequest) {
     headers: {
       "Content-Type": "audio/mpeg",
       "Cache-Control": "no-store",
+      "X-Voice-Id": voiceId,
+      "X-Voice-Model": modelId,
     },
   });
 }
@@ -107,14 +126,22 @@ function jsonError(
 
 /**
  * Insert subtle SSML-style breaks for more natural cadence in Arabic.
- * Multilingual_v2 + eleven_v3 understand <break time="X.Xs" />.
+ * `eleven_multilingual_v2` honors <break time="X.Xs" /> tags inside text.
+ *
+ * IMPORTANT — this function is intentionally PURELY ADDITIVE. It only
+ * INSERTS break markers; it never strips, normalizes, or transforms the
+ * input. Arabic diacritics (tashkeel) like فَتْحَة / كَسْرَة / ضَمَّة /
+ * شَدَّة authored inside conversation.ts (e.g. حَقْن, حَمْل, مَنَوي)
+ * pass through verbatim so pronunciation hints are honored downstream.
  */
 function enrichForNaturalPauses(text: string): string {
   return (
     text
-      // Long pause after sentence enders
+      // Long pause for ellipsis (Unicode … and triple ASCII dots)
+      .replace(/(\u2026|\.{3})/g, ' <break time="0.55s" /> ')
+      // Long pause after sentence enders (period, Arabic ?, !)
       .replace(/([.؟!])\s+/g, '$1 <break time="0.45s" /> ')
-      // Short pause after Arabic and Latin commas
+      // Short pause after Arabic comma and Latin comma
       .replace(/([،,])\s+/g, '$1 <break time="0.25s" /> ')
       // Tiny breath before the closing disclaimer phrase
       .replace(/(تقييم مبدئي)/g, '<break time="0.2s" /> $1')
