@@ -37,6 +37,15 @@ export default function VoiceSession() {
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [supported, setSupported] = useState(true);
+  /**
+   * When mobile-browser autoplay policy blocks audio playback we surface
+   * a manual "🔊 تشغيل الصوت" button. Tapping it provides a fresh user
+   * gesture so the queued phrase can be re-spoken.
+   */
+  const [blockedAudio, setBlockedAudio] = useState<{
+    text: string;
+    autoListen: boolean;
+  } | null>(null);
 
   const stopListeningRef = useRef<null | (() => void)>(null);
   const stateRef = useRef({ step, answers, muted, orbState });
@@ -44,6 +53,45 @@ export default function VoiceSession() {
 
   // Pending speech queue (used so file-upload acks don't interrupt mid-question speech).
   const pendingAckRef = useRef<string | null>(null);
+
+  /**
+   * Mobile browsers (especially iOS Safari) only allow programmatic
+   * audio playback after a synchronous play() call inside a user
+   * gesture. We "unlock" the audio output by playing a tiny silent WAV
+   * the first time the user taps the orb — once unlocked, every later
+   * `Audio.play()` in the session is permitted.
+   */
+  const audioUnlockedRef = useRef(false);
+  const unlockAudio = useCallback(() => {
+    if (audioUnlockedRef.current) return;
+    audioUnlockedRef.current = true;
+    try {
+      const a = new Audio();
+      // 0.1s of pure silence (44.1kHz mono PCM) inlined as a data URI.
+      a.src =
+        "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+      a.volume = 0;
+      a.muted = true;
+      const p = a.play();
+      if (p && typeof p.then === "function") {
+        p.then(() => {
+          console.log("[Audio] unlocked (silent buffer played)");
+          try {
+            a.pause();
+            a.src = "";
+          } catch {
+            /* ignore */
+          }
+        }).catch((err) => {
+          console.warn(
+            `[Audio] unlock attempt rejected: ${err?.name ?? "Error"}`
+          );
+        });
+      }
+    } catch (err) {
+      console.warn("[Audio] unlock attempt threw:", err);
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -113,8 +161,22 @@ export default function VoiceSession() {
       );
       pushMessage("assistant", text);
       setOrbState("speaking");
+      // Whenever we start a new utterance, dismiss any stale blocked-audio
+      // prompt — this attempt itself may succeed (or be the new failure).
+      setBlockedAudio(null);
+
+      // Track whether this attempt was killed by browser autoplay policy.
+      // If so, we DO NOT advance the conversation; we wait for the user
+      // to tap the manual play button (which calls speakAssistant again).
+      let autoplayWasBlocked = false;
 
       const finish = () => {
+        if (autoplayWasBlocked) {
+          // Stay frozen on the "speaking" orb so the user understands the
+          // assistant is waiting on them. The fallback button drives the
+          // next step.
+          return;
+        }
         // Flush any queued upload-ack first
         const queued = pendingAckRef.current;
         pendingAckRef.current = null;
@@ -132,15 +194,25 @@ export default function VoiceSession() {
         return;
       }
 
+      // Task 1: stop the mic explicitly before speaking, so iOS releases
+      // the input audio session and routes output to the speaker.
+      stopListening();
+
       await speak(text, {
         lang: "ar-EG",
-        // Slightly slower playback for Arabic clarity.
         rate: 0.95,
+        onAutoplayBlocked: () => {
+          autoplayWasBlocked = true;
+          console.warn(
+            "[Assistant] autoplay blocked — surfacing manual play button"
+          );
+          setBlockedAudio({ text, autoListen });
+        },
         onEnd: finish,
         onError: finish,
       });
     },
-    [beginListening, pushMessage]
+    [beginListening, pushMessage, stopListening]
   );
 
   const handleUserText = useCallback(
@@ -197,6 +269,11 @@ export default function VoiceSession() {
       return;
     }
 
+    // Mobile audio unlock — must run synchronously inside the user-gesture
+    // handler. Plays a tiny silent buffer so subsequent (deferred) audio
+    // playback is permitted by iOS Safari / mobile Chrome autoplay rules.
+    unlockAudio();
+
     if (!started) {
       setStarted(true);
       clearSession();
@@ -227,7 +304,22 @@ export default function VoiceSession() {
     started,
     stopListening,
     supported,
+    unlockAudio,
   ]);
+
+  /**
+   * User tapped the "🔊 تشغيل الصوت" fallback button. This is a fresh user
+   * gesture, so we re-attempt audio unlock and replay the blocked phrase.
+   */
+  const handleManualPlay = useCallback(() => {
+    if (!blockedAudio) return;
+    console.log("[Audio] manual play button tapped — retrying utterance");
+    audioUnlockedRef.current = false; // force a fresh unlock
+    unlockAudio();
+    const { text, autoListen } = blockedAudio;
+    setBlockedAudio(null);
+    speakAssistant(text, autoListen);
+  }, [blockedAudio, speakAssistant, unlockAudio]);
 
   const handleReset = () => {
     cancelSpeak();
@@ -239,6 +331,7 @@ export default function VoiceSession() {
     setInterim("");
     setError(null);
     setOrbState("idle");
+    setBlockedAudio(null);
     pendingAckRef.current = null;
     clearSession();
   };
@@ -309,6 +402,18 @@ export default function VoiceSession() {
 
         <div className="mt-10 flex flex-col items-center gap-8">
           <VoiceOrb state={orbState} onClick={handleOrbClick} />
+
+          {blockedAudio && (
+            <button
+              type="button"
+              onClick={handleManualPlay}
+              className="animate-fade-in-up flex items-center gap-2 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 px-5 py-3 text-white shadow-soft hover:shadow-md hover:scale-[1.02] active:scale-[0.99] transition text-sm font-semibold"
+              aria-label="تشغيل الصوت"
+            >
+              <span className="text-lg">🔊</span>
+              <span>تشغيل الصوت</span>
+            </button>
+          )}
 
           {!started && (
             <div className="text-center max-w-md animate-fade-in-up">

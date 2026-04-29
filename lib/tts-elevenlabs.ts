@@ -202,7 +202,20 @@ function cacheUrl(text: string, url: string) {
 
 // ---------- Audio playback -----------------------------------------------
 
-function playUrl(url: string, opts: SpeakOptions): Promise<void> {
+/**
+ * Delay before audio.play() — gives mobile browsers (especially iOS Safari)
+ * time to release the microphone stream and re-route audio output to the
+ * speaker. Without this, Egyptian-Arabic playback on iOS sometimes routes
+ * to the earpiece at near-zero volume or is silently dropped.
+ */
+const PRE_PLAY_DELAY_MS = 350;
+
+async function playUrl(url: string, opts: SpeakOptions): Promise<void> {
+  // Wait for mic teardown to settle on mobile before grabbing audio output.
+  if (PRE_PLAY_DELAY_MS > 0) {
+    await new Promise((r) => setTimeout(r, PRE_PLAY_DELAY_MS));
+  }
+
   return new Promise<void>((resolve) => {
     const audio = new Audio(url);
     currentAudio = audio;
@@ -211,6 +224,10 @@ function playUrl(url: string, opts: SpeakOptions): Promise<void> {
     // Slightly slower playback for Arabic clarity.
     audio.playbackRate = opts.rate ?? 0.95;
     audio.preload = "auto";
+    // iOS Safari quirk — without these, the audio may be muted or fail
+    // to enter the foreground media session.
+    audio.setAttribute("playsinline", "true");
+    audio.setAttribute("webkit-playsinline", "true");
 
     let settled = false;
     const finish = (errored: boolean) => {
@@ -222,15 +239,40 @@ function playUrl(url: string, opts: SpeakOptions): Promise<void> {
       resolve();
     };
 
-    audio.onplay = () => opts.onStart?.();
-    audio.onended = () => finish(false);
+    audio.onplay = () => {
+      console.log("[Audio] started");
+      opts.onStart?.();
+    };
+    audio.onended = () => {
+      console.log("[Audio] ended");
+      finish(false);
+    };
     audio.onerror = () => {
-      console.warn("[Speech] HTMLAudioElement error event fired.");
+      console.error(
+        `[Audio] failed — HTMLAudioElement error event ` +
+          `(code=${audio.error?.code} message="${audio.error?.message}")`
+      );
       finish(true);
     };
 
-    audio.play().catch((err) => {
-      console.warn("[Speech] audio.play() rejected:", err);
+    // play() returns a promise. On mobile, NotAllowedError = autoplay
+    // policy blocked us; AbortError = the play was interrupted.
+    audio.play().catch((err: DOMException) => {
+      const name = err?.name ?? "UnknownError";
+      const message = err?.message ?? String(err);
+      console.error(`[Audio] failed — play() rejected: ${name}: ${message}`);
+
+      if (name === "NotAllowedError" || name === "NotSupportedError") {
+        // Browser autoplay policy. Surface to the UI so it can render a
+        // manual "🔊 تشغيل الصوت" button. We still settle the queue as
+        // errored so it doesn't deadlock — the UI is responsible for
+        // re-queueing the same phrase from inside a fresh user gesture.
+        console.warn(
+          "[Audio] autoplay blocked by browser — UI fallback button required."
+        );
+        opts.onAutoplayBlocked?.();
+      }
+
       finish(true);
     });
   });

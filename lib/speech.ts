@@ -144,6 +144,13 @@ export interface SpeakOptions {
   onEnd?: () => void;
   onStart?: () => void;
   onError?: () => void;
+  /**
+   * Fired when the browser's autoplay policy blocks `audio.play()`
+   * (mobile Safari / Chrome typically throw `NotAllowedError` when
+   * play is invoked too far from a user gesture). The UI should
+   * surface a manual "tap to play" button.
+   */
+  onAutoplayBlocked?: () => void;
 }
 
 /** Speak using the OS / browser voice (no network). */
