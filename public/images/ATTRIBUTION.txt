@@ -1,0 +1,10 @@
+Background Photography
+======================
+
+family.jpg
+  User-supplied background image. Used as the soft, blurred
+  full-screen backdrop on both the home and report screens.
+  Rendered with a 70% white overlay for text readability.
+
+If you replace this file, keep the same filename so no code
+changes are needed (path: /public/images/family.jpg).
