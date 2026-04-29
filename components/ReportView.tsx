@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import BrandingLogo from "@/components/BrandingLogo";
 import {
   clearSession,
   loadSession,
@@ -29,14 +30,19 @@ export default function ReportView() {
 
   if (!data) {
     return (
-      <div className="glass rounded-3xl p-8 text-center shadow-soft">
-        <p className="text-ink-600">ماعندناش بيانات جلسة لسه.</p>
-        <Link
-          href="/"
-          className="mt-4 inline-block rounded-xl bg-brand-600 text-white px-4 py-2 text-sm hover:bg-brand-700 transition"
-        >
-          ابدئي الجلسة
-        </Link>
+      <div className="w-full max-w-3xl mx-auto space-y-4">
+        <div className="flex justify-start print:hidden">
+          <BrandingLogo variant="inline" />
+        </div>
+        <div className="glass rounded-3xl p-8 text-center shadow-soft">
+          <p className="text-ink-600">ماعندناش بيانات جلسة لسه.</p>
+          <Link
+            href="/"
+            className="mt-4 inline-block rounded-xl bg-brand-600 text-white px-4 py-2 text-sm hover:bg-brand-700 transition"
+          >
+            ابدئي الجلسة
+          </Link>
+        </div>
       </div>
     );
   }
@@ -63,21 +69,24 @@ export default function ReportView() {
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-5">
-      <div className="flex items-center justify-between print:hidden">
-        <Link
-          href="/"
-          className="text-sm text-ink-500 hover:text-ink-800 transition"
-        >
-          ← رجوع
-        </Link>
-        <div className="flex gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <BrandingLogo variant="inline" />
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/"
+            className="text-sm text-ink-500 hover:text-ink-800 transition"
+          >
+            ← رجوع
+          </Link>
           <button
+            type="button"
             onClick={handlePrint}
             className="rounded-xl border border-ink-200 bg-white/80 px-3 py-2 text-xs text-ink-700 hover:bg-white transition"
           >
             طباعة / PDF
           </button>
           <button
+            type="button"
             onClick={handleNew}
             className="rounded-xl border border-ink-200 bg-white/80 px-3 py-2 text-xs text-ink-700 hover:bg-white transition"
           >
