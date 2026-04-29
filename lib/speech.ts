@@ -6,8 +6,9 @@
  * - `startListening()` uses SpeechRecognition (STT)
  * - `browserSpeak()` uses window.speechSynthesis (TTS, fallback only)
  *
- * The unified TTS entrypoint is `speak()` in `lib/tts-elevenlabs.ts`,
- * which calls ElevenLabs first and uses `browserSpeak` as fallback.
+ * The unified TTS entrypoint is `speak()` in `lib/tts-elevenlabs.ts`
+ * (ElevenLabs via `/api/tts` only). `browserSpeak` exists for emergencies
+ * / tooling and is not wired into the demo flow.
  */
 
 export type SpeechLang = "ar-EG" | "ar-SA" | "en-US";

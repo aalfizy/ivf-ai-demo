@@ -1,30 +1,30 @@
 "use client";
 
 /**
- * Unified Text-to-Speech client (ElevenLabs only).
+ * Unified Text-to-Speech client — **ElevenLabs only**.
  *
- * Design contract (do not relax without explicit approval):
+ * Design contract:
  *
- *   1. ElevenLabs is the ONLY supported TTS engine. There is no automatic
- *      browser-speechSynthesis fallback. If ElevenLabs fails for any
- *      reason, we log loudly and resolve quietly so the conversation
- *      flow can advance — but we never produce a different-sounding
- *      voice in the same session.
+ *   1. Every phrase is synthesized via `/api/tts` → ElevenLabs
+ *      (`eleven_multilingual_v2`, fixed `ELEVENLABS_VOICE_ID` on the server).
+ *      There is **no** browser `speechSynthesis` fallback.
  *
- *   2. Speech is SERIALIZED. A new `speak()` call enqueues; it does not
- *      interrupt the previous utterance. The only way to stop speech is
- *      `cancelSpeak()`, called explicitly by the UI on mute/reset/orb-tap.
+ *   2. If ElevenLabs is disabled (`NEXT_PUBLIC_USE_ELEVENLABS=false`),
+ *      requests fail, or playback errors occur, we log loudly including
+ *      `[Speech] ⚠ browser fallback NOT used (ElevenLabs-only)` and end
+ *      the utterance without substitute audio.
  *
- *   3. Every spoken sentence is logged as `[Speech] "..."` so demo
- *      operators can trace exactly what was uttered.
+ *   3. Speech is **serialized**: `speak()` enqueues; the next phrase waits
+ *      until the previous finishes. Only `cancelSpeak()` stops playback.
  *
- *   4. Audio is cached per-text. Repeated phrases (intros, acks) play
- *      instantly without re-hitting the API.
+ *   4. Debug: `[Speech] ▶` full utterance, `[Speech] ·` per sentence chunk,
+ *      `[Speech] queue+`, cache hits, and explicit messages when a fallback
+ *      would have applied but is disabled.
  *
  * Public API:
- *   speak(text, opts?)   → enqueue a phrase; resolves when it finishes
- *   cancelSpeak()        → hard-stop current playback + clear queue
- *   prefetchSpeech(text) → warm the cache for known phrases
+ *   speak(text, opts?)   → enqueue; resolves when done (or failed/skipped)
+ *   cancelSpeak()        → stop audio + clear queue
+ *   prefetchSpeech(text) → warm the cache
  */
 
 import type { SpeakOptions } from "./speech";
@@ -38,11 +38,9 @@ const ELEVEN_DISABLED =
 let currentAudio: HTMLAudioElement | null = null;
 let currentRequest: AbortController | null = null;
 
-const audioCache = new Map<string, string>(); // text → blob URL
-const inflight = new Map<string, Promise<string | null>>();
+const audioCache = new Map<string, string>();
+const inflight = new Map<string, Promise<FetchResult>>();
 const MAX_CACHE = 60;
-
-// ---------- Sequential speech queue --------------------------------------
 
 interface QueueItem {
   text: string;
@@ -54,10 +52,6 @@ interface QueueItem {
 const queue: QueueItem[] = [];
 let processing = false;
 
-/**
- * Enqueue a phrase to be spoken. Resolves when the phrase finishes
- * playing (or fails / is cancelled). Calls do NOT interrupt each other.
- */
 export function speak(text: string, opts: SpeakOptions = {}): Promise<void> {
   const trimmed = text.trim();
   if (!trimmed) {
@@ -66,11 +60,24 @@ export function speak(text: string, opts: SpeakOptions = {}): Promise<void> {
   }
 
   console.log(`[Speech] queue+ "${preview(trimmed)}"`);
+  logSentenceChunks(trimmed);
 
   return new Promise<void>((resolve) => {
     const item: QueueItem = { text: trimmed, opts, resolve, cancelled: false };
     queue.push(item);
     void processQueue();
+  });
+}
+
+/** Split on Arabic/Latin sentence boundaries and ellipsis — tashkeel-safe (no mutation). */
+function logSentenceChunks(full: string): void {
+  const chunks = full
+    .split(/(?:[.؟!]+\s+|\s*\u2026\s*|\s*\.{3}\s*)/u)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (chunks.length === 0) return;
+  chunks.forEach((c, i) => {
+    console.log(`[Speech] · sentence ${i + 1}/${chunks.length} "${preview(c)}"`);
   });
 }
 
@@ -99,40 +106,35 @@ async function processQueue(): Promise<void> {
 }
 
 async function speakOne(text: string, opts: SpeakOptions): Promise<void> {
-  console.log(`[Speech] ▶ "${preview(text)}"`);
+  console.log(`[Speech] ▶ full utterance "${preview(text)}"`);
 
   if (ELEVEN_DISABLED) {
-    // Strict mode — no browser fallback. Just log and resolve quietly so
-    // the conversation flow advances; the operator sees the warning.
     console.warn(
-      "[Speech] ElevenLabs disabled via NEXT_PUBLIC_USE_ELEVENLABS=false — utterance skipped (no browser fallback by design)."
+      "[Speech] ⚠ browser fallback NOT used (ElevenLabs-only) — " +
+        "NEXT_PUBLIC_USE_ELEVENLABS=false; utterance skipped."
     );
     opts.onEnd?.();
     return;
   }
 
-  const url = await fetchElevenAudio(text);
-  if (url) {
-    return playUrl(url, opts);
+  const result = await fetchElevenAudio(text);
+  if ("url" in result) {
+    return playUrl(result.url, opts);
   }
 
-  // ElevenLabs failed for this phrase. We do NOT fall back to the browser
-  // voice — that would break voice consistency. We log and resolve so the
-  // conversation can move on.
-  console.error(
-    `[Speech] ✗ ElevenLabs failed for "${preview(text)}" — ` +
-      "no fallback by design (NEXT_PUBLIC_USE_ELEVENLABS controls this)."
+  console.warn(
+    `[Speech] ⚠ browser fallback NOT used (ElevenLabs-only) — ElevenLabs failed, reason=${result.error}`
   );
   opts.onEnd?.();
 }
 
-// ---------- ElevenLabs fetch + cache -------------------------------------
+type FetchResult = { url: string } | { error: string };
 
-async function fetchElevenAudio(text: string): Promise<string | null> {
+async function fetchElevenAudio(text: string): Promise<FetchResult> {
   const cached = audioCache.get(text);
   if (cached) {
     console.log(`[Speech] cache hit "${preview(text)}"`);
-    return cached;
+    return { url: cached };
   }
 
   const existing = inflight.get(text);
@@ -141,7 +143,7 @@ async function fetchElevenAudio(text: string): Promise<string | null> {
   const controller = new AbortController();
   currentRequest = controller;
 
-  const promise = (async (): Promise<string | null> => {
+  const promise = (async (): Promise<FetchResult> => {
     try {
       const res = await fetch("/api/tts", {
         method: "POST",
@@ -156,23 +158,27 @@ async function fetchElevenAudio(text: string): Promise<string | null> {
         } catch {
           /* ignore */
         }
-        console.error(
-          `[Speech] /api/tts HTTP ${res.status} — ${detail || "(no body)"}`
-        );
-        return null;
+        console.error(`[Speech] /api/tts HTTP ${res.status} — ${detail || "(no body)"}`);
+        if (detail.includes("quota_exceeded") || res.status === 402) {
+          return { error: "elevenlabs_credits_exhausted" };
+        }
+        if (res.status === 429) return { error: "elevenlabs_rate_limited" };
+        if (res.status >= 500) return { error: "elevenlabs_upstream_5xx" };
+        return { error: `elevenlabs_http_${res.status}` };
       }
       const blob = await res.blob();
       if (!blob || blob.size === 0) {
         console.error("[Speech] /api/tts returned empty audio body.");
-        return null;
+        return { error: "elevenlabs_empty_body" };
       }
       const url = URL.createObjectURL(blob);
       cacheUrl(text, url);
-      return url;
+      return { url };
     } catch (err) {
-      const aborted = (err as { name?: string })?.name === "AbortError";
-      if (!aborted) console.error("[Speech] /api/tts fetch threw:", err);
-      return null;
+      const name = (err as { name?: string })?.name ?? "Error";
+      if (name === "AbortError") return { error: "aborted" };
+      console.error("[Speech] /api/tts fetch threw:", err);
+      return { error: `network_error:${name}` };
     } finally {
       inflight.delete(text);
     }
@@ -200,18 +206,9 @@ function cacheUrl(text: string, url: string) {
   audioCache.set(text, url);
 }
 
-// ---------- Audio playback -----------------------------------------------
-
-/**
- * Delay before audio.play() — gives mobile browsers (especially iOS Safari)
- * time to release the microphone stream and re-route audio output to the
- * speaker. Without this, Egyptian-Arabic playback on iOS sometimes routes
- * to the earpiece at near-zero volume or is silently dropped.
- */
 const PRE_PLAY_DELAY_MS = 350;
 
 async function playUrl(url: string, opts: SpeakOptions): Promise<void> {
-  // Wait for mic teardown to settle on mobile before grabbing audio output.
   if (PRE_PLAY_DELAY_MS > 0) {
     await new Promise((r) => setTimeout(r, PRE_PLAY_DELAY_MS));
   }
@@ -221,11 +218,8 @@ async function playUrl(url: string, opts: SpeakOptions): Promise<void> {
     currentAudio = audio;
 
     audio.volume = opts.volume ?? 1.0;
-    // Slightly slower playback for Arabic clarity.
     audio.playbackRate = opts.rate ?? 0.95;
     audio.preload = "auto";
-    // iOS Safari quirk — without these, the audio may be muted or fail
-    // to enter the foreground media session.
     audio.setAttribute("playsinline", "true");
     audio.setAttribute("webkit-playsinline", "true");
 
@@ -249,26 +243,23 @@ async function playUrl(url: string, opts: SpeakOptions): Promise<void> {
     };
     audio.onerror = () => {
       console.error(
-        `[Audio] failed — HTMLAudioElement error event ` +
+        `[Audio] failed — HTMLAudioElement error ` +
           `(code=${audio.error?.code} message="${audio.error?.message}")`
+      );
+      console.warn(
+        "[Speech] ⚠ browser fallback NOT used (ElevenLabs-only) — HTMLAudio playback failed."
       );
       finish(true);
     };
 
-    // play() returns a promise. On mobile, NotAllowedError = autoplay
-    // policy blocked us; AbortError = the play was interrupted.
     audio.play().catch((err: DOMException) => {
       const name = err?.name ?? "UnknownError";
       const message = err?.message ?? String(err);
       console.error(`[Audio] failed — play() rejected: ${name}: ${message}`);
 
       if (name === "NotAllowedError" || name === "NotSupportedError") {
-        // Browser autoplay policy. Surface to the UI so it can render a
-        // manual "🔊 تشغيل الصوت" button. We still settle the queue as
-        // errored so it doesn't deadlock — the UI is responsible for
-        // re-queueing the same phrase from inside a fresh user gesture.
         console.warn(
-          "[Audio] autoplay blocked by browser — UI fallback button required."
+          "[Audio] autoplay blocked — surfacing manual play button (still ElevenLabs-only)."
         );
         opts.onAutoplayBlocked?.();
       }
@@ -278,9 +269,6 @@ async function playUrl(url: string, opts: SpeakOptions): Promise<void> {
   });
 }
 
-// ---------- Public controls ----------------------------------------------
-
-/** Hard-stop: cancels in-flight request, current audio, and all queued items. */
 export function cancelSpeak(): void {
   if (queue.length > 0) {
     console.log(`[Speech] cancel — dropping ${queue.length} queued item(s)`);
@@ -315,15 +303,12 @@ export function isElevenLabsAvailable(): boolean {
   return !ELEVEN_DISABLED;
 }
 
-/** Pre-warm a known phrase so the first click feels instant. */
 export function prefetchSpeech(text: string): void {
   const trimmed = text.trim();
   if (!trimmed || ELEVEN_DISABLED) return;
   if (audioCache.has(trimmed) || inflight.has(trimmed)) return;
   void fetchElevenAudio(trimmed);
 }
-
-// ---------- Internal helpers ---------------------------------------------
 
 function preview(text: string): string {
   const t = text.replace(/\s+/g, " ");

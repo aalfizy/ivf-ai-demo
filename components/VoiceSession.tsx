@@ -12,7 +12,6 @@ import { analyzeFiles } from "@/lib/fileAnalysis";
 import type { Answers, ChatMessage, StepId } from "@/lib/types";
 import {
   isRecognitionSupported,
-  isSynthesisSupported,
   startListening,
 } from "@/lib/speech";
 import { cancelSpeak, prefetchSpeech, speak } from "@/lib/tts-elevenlabs";
@@ -95,7 +94,7 @@ export default function VoiceSession() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setSupported(isRecognitionSupported() && isSynthesisSupported());
+    setSupported(isRecognitionSupported());
     // Pre-warm the intro line so the first click feels instant.
     prefetchSpeech(intro().text);
   }, []);
@@ -264,7 +263,7 @@ export default function VoiceSession() {
   const handleOrbClick = useCallback(() => {
     if (!supported) {
       setError(
-        "المتصفح ده مش بيدعم الصوت. جربي Google Chrome أو Edge على كمبيوتر أو أندرويد."
+        "المتصفح ده مش بيدعم التعرف على الصوت. جرّبي Google Chrome أو Edge على كمبيوتر أو أندرويد."
       );
       return;
     }

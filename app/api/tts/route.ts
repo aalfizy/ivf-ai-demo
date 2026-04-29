@@ -7,7 +7,6 @@ const ELEVENLABS_BASE = "https://api.elevenlabs.io/v1";
 
 interface TTSBody {
   text?: string;
-  voiceId?: string;
 }
 
 /**
@@ -15,12 +14,15 @@ interface TTSBody {
  * The API key is read from process.env.ELEVENLABS_API_KEY and never
  * sent to the browser.
  *
- * Body: { text: string, voiceId?: string }
+ * Body: { text: string }
  * Response: audio/mpeg stream
+ *
+ * Voice: fixed from ELEVENLABS_VOICE_ID only (never from request body).
  */
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
   if (!apiKey) {
+    console.error("ElevenLabs API key not found");
     return jsonError("missing_api_key", 500);
   }
 
@@ -35,12 +37,9 @@ export async function POST(req: NextRequest) {
   if (!text) return jsonError("empty_text", 400);
   if (text.length > 1500) return jsonError("text_too_long", 413);
 
-  // Voice is fixed per-deployment via ELEVENLABS_VOICE_ID. We never pick
-  // a voice dynamically — same voice every turn for consistency.
+  // Voice is fixed — env only. Never read from the client body.
   const voiceId =
-    body.voiceId ||
-    process.env.ELEVENLABS_VOICE_ID ||
-    "EXAVITQu4vr4xnSDxMaL";
+    process.env.ELEVENLABS_VOICE_ID?.trim() || "EXAVITQu4vr4xnSDxMaL";
 
   // Model is hard-locked. Do NOT read from env — a stale .env file or a
   // misconfigured deployment must never silently switch models. This is
@@ -57,7 +56,7 @@ export async function POST(req: NextRequest) {
 
   // Visibility log so you can see exactly what was sent to ElevenLabs.
   console.log(
-    `[TTS] → ElevenLabs  voice=${voiceId}  model=${modelId}  chars=${text.length}`
+    `[TTS] → ElevenLabs  voice=${voiceId}  model=${modelId}  chars=${text.length}  tashkeel=preserved`
   );
 
   let elRes: Response;
