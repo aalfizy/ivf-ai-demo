@@ -4,8 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useState } from "react";
 
-/** Served from `public/images/` → URL must be `/images/...` (never `/public/...`). */
-export const SERVERAT_LOGO_PATH = "/images/serverat-logo.png" as const;
+/** Served from `public/images/logo.png` → URL `/images/logo.png` (never `/public/...`). */
+export const BRANDING_LOGO_PATH = "/images/logo.png" as const;
 
 type BrandingLogoProps = {
   /** Fixed top-right corner (home). */
@@ -26,7 +26,7 @@ export default function BrandingLogo({
   const onImageError = useCallback(() => {
     console.warn(
       "[BrandingLogo] next/image failed — falling back to <img>",
-      SERVERAT_LOGO_PATH
+      BRANDING_LOGO_PATH
     );
     setUseNativeImg(true);
   }, []);
@@ -36,7 +36,7 @@ export default function BrandingLogo({
 
   const picture = useNativeImg ? (
     <img
-      src={SERVERAT_LOGO_PATH}
+      src={BRANDING_LOGO_PATH}
       alt="Serverat Logo"
       width={120}
       height={120}
@@ -46,7 +46,7 @@ export default function BrandingLogo({
     />
   ) : (
     <Image
-      src={SERVERAT_LOGO_PATH}
+      src={BRANDING_LOGO_PATH}
       alt="Serverat Logo"
       width={120}
       height={120}
