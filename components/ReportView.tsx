@@ -96,7 +96,7 @@ export default function ReportView() {
       </div>
 
       <article className="glass rounded-3xl p-6 sm:p-10 shadow-soft animate-fade-in-up print:shadow-none print:bg-white">
-        <ReportHeader />
+        <ReportHeader completedAt={data.completedAt} />
 
         <div className="mb-6">
           <HopeNote variant="intro" />
@@ -221,27 +221,23 @@ export default function ReportView() {
   );
 }
 
-function ReportHeader() {
+function ReportHeader({ completedAt }: { completedAt?: number }) {
   const today = new Date();
+  const year = today.getFullYear();
   const date = today.toLocaleDateString("ar-EG", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
   const ref = useMemo(
-    () =>
-      "IVF-" +
-      Math.random().toString(36).slice(2, 8).toUpperCase() +
-      "-" +
-      today.getFullYear(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    () => stableReportReference(year, completedAt),
+    [year, completedAt]
   );
   return (
     <header className="flex items-start justify-between gap-4 border-b border-ink-100 pb-5 mb-6">
       <div>
-        <p className="text-[11px] tracking-widest text-brand-700 uppercase">
-          Initial IVF Assessment Report
+        <p className="text-[11px] tracking-widest text-brand-700">
+          تقرير تقييم مبدئي للحقن المجهري
         </p>
         <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-ink-900">
           التقرير المبدئي للحقن المجهري
@@ -266,6 +262,16 @@ function ReportHeader() {
       </div>
     </header>
   );
+}
+
+/** Deterministic reference code from session completion time (no random IDs). */
+function stableReportReference(year: number, completedAt?: number): string {
+  let x = (completedAt ?? 0) ^ year;
+  x = Math.imul(x, 0x9e3779b1);
+  x ^= x >>> 16;
+  x = Math.imul(x, 0x85ebca6b);
+  const code = String((x >>> 0) % 10_000_000).padStart(7, "0");
+  return `حقن-${year}-${code}`;
 }
 
 function PredictionHero({
@@ -410,7 +416,7 @@ function DataGrid({ answers }: { answers: Answers }) {
           : "—",
     },
     {
-      label: "AMH",
+      label: "تحليل مخزون المبيض",
       value:
         typeof answers.amh === "number"
           ? `${answers.amh}`

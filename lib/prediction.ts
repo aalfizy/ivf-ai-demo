@@ -80,7 +80,9 @@ export function predict(
   if (a.cycle_regular === false) {
     base -= 5;
     riskFactors.push("عدم انتظام الدورة الشهرية");
-    tests.push("تحليل هرمونات شامل (FSH, LH, Estradiol, Prolactin, TSH)");
+    tests.push(
+      "تحليل هرمونات شامل: المنشّط للجريب، اللوتين، الإسترادايول، البرولاكتين، والغدة الدرقية"
+    );
   } else if (a.cycle_regular === true) {
     base += 2;
     contributingFactors.push("انتظام الدورة الشهرية — مؤشر جيد");
@@ -89,8 +91,8 @@ export function predict(
   // --- Hormonal / PCOS ---
   if (a.pcos) {
     base -= 4;
-    riskFactors.push("تكيس المبايض (PCOS) — يحتاج بروتوكول مخصص");
-    tests.push("متابعة مقاومة الإنسولين والسكر التراكمي (HbA1c)");
+    riskFactors.push("تكيس المبايض — يحتاج بروتوكول مخصص");
+    tests.push("متابعة مقاومة الإنسولين والسكر التراكمي");
   } else if (a.hormonal_issues) {
     base -= 3;
     riskFactors.push("وجود مشاكل هرمونية — تحتاج متابعة");
@@ -100,19 +102,19 @@ export function predict(
   if (typeof a.amh === "number") {
     if (a.amh < 1) {
       base -= 12;
-      riskFactors.push(`مخزون المبيض منخفض (AMH = ${a.amh})`);
+      riskFactors.push(`مخزون المبيض منخفض (القيمة ≈ ${a.amh})`);
     } else if (a.amh < 1.5) {
       base -= 6;
-      riskFactors.push(`مخزون المبيض أقل من المتوسط (AMH = ${a.amh})`);
+      riskFactors.push(`مخزون المبيض أقل من المتوسط (القيمة ≈ ${a.amh})`);
     } else if (a.amh <= 4) {
       base += 4;
-      contributingFactors.push(`مخزون المبيض جيد (AMH = ${a.amh})`);
+      contributingFactors.push(`مخزون المبيض جيد (القيمة ≈ ${a.amh})`);
     } else {
       base -= 2;
-      riskFactors.push(`AMH مرتفع (${a.amh}) — قد يشير لتكيس`);
+      riskFactors.push(`مخزون المبيض مرتفع نسبياً (${a.amh}) — قد يشير لتكيس`);
     }
   } else if (a.amh === "unknown") {
-    tests.push("تحليل AMH لتقييم مخزون المبيض");
+    tests.push("تحليل مخزون المبيض (هرمون مقاومة مولر)");
   }
 
   // --- Previous IVF ---
@@ -131,7 +133,7 @@ export function predict(
       riskFactors.push(
         `${a.previous_ivf_count} محاولات سابقة — تحتاج تقييم دقيق`
       );
-      tests.push("فحص الكروموسومات (Karyotype) لكلا الزوجين");
+      tests.push("فحص النوع الصبغي لكلا الزوجين");
     }
   }
 
@@ -145,7 +147,7 @@ export function predict(
   if (a.male_factor) {
     base -= 5;
     riskFactors.push("وجود عامل ذكري — يحتاج تقييم الحيوانات المنوية");
-    tests.push("تحليل سائل منوي + DNA Fragmentation");
+    tests.push("تحليل سائل منوي وفحص تجزئة الحمض النووي للحيوانات المنوية");
   } else if (a.male_factor === false) {
     contributingFactors.push("لا يوجد عامل ذكري معروف");
   }
@@ -176,15 +178,20 @@ export function predict(
   if (fd.fsh !== undefined) {
     if (fd.fsh > 10) {
       base -= 3;
-      riskFactors.push(`FSH مرتفع (${fd.fsh}) — مؤشر تحفظي على المخزون`);
+      riskFactors.push(
+        `هرمون المنشّط للجريب مرتفع (${fd.fsh}) — مؤشر تحفظي على المخزون`
+      );
     } else {
-      contributingFactors.push(`FSH ضمن المعدل (${fd.fsh})`);
+      contributingFactors.push(`هرمون المنشّط للجريب ضمن المعدل (${fd.fsh})`);
     }
   }
 
   // --- Always-suggested baseline tests ---
   pushUnique(tests, "سونار مهبلي لتقييم الرحم والمبايض");
-  pushUnique(tests, "تحليل هرمونات شامل (FSH, LH, Estradiol, Prolactin, TSH)");
+  pushUnique(
+    tests,
+    "تحليل هرمونات شامل: المنشّط للجريب، اللوتين، الإسترادايول، البرولاكتين، والغدة الدرقية"
+  );
   if (!a.male_factor) pushUnique(tests, "تحليل سائل منوي للزوج");
 
   // --- Confidence based on evidence ---
@@ -228,7 +235,7 @@ export function predict(
   }
   nextSteps.push("الحفاظ على نمط حياة صحي: أكل متوازن، نوم كافي، تقليل التوتر");
   if (a.age !== undefined && a.age >= 38) {
-    nextSteps.push("مناقشة خيار تجميد البويضات أو فحص الأجنة جينياً (PGT)");
+    nextSteps.push("مناقشة خيار تجميد البويضات أو فحص الأجنة جينياً قبل الزرع");
   }
 
   // --- Summary ---
@@ -239,7 +246,8 @@ export function predict(
   if (a.cycle_regular === true) summaryParts.push("دورة منتظمة");
   else if (a.cycle_regular === false) summaryParts.push("دورة غير منتظمة");
   if (a.pcos) summaryParts.push("تكيس مبايض");
-  if (typeof a.amh === "number") summaryParts.push(`AMH = ${a.amh}`);
+  if (typeof a.amh === "number")
+    summaryParts.push(`مخزون مبيض تقريباً ${a.amh}`);
   if (a.previous_ivf_count && a.previous_ivf_count > 0)
     summaryParts.push(`${a.previous_ivf_count} محاولة سابقة`);
   if (a.previous_pregnancy) summaryParts.push("حمل سابق");

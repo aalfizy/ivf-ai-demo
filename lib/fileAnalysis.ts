@@ -1,9 +1,8 @@
 import type { ExtractedFileData } from "./types";
 
 /**
- * Mock "AI" file analysis.
- * Looks at filenames only and pretends to extract clinical values.
- * Deterministic per filename so the demo is stable across renders.
+ * Mock file analysis from filenames only (deterministic per name).
+ * Tags are Arabic-only for on-screen copy.
  */
 export function analyzeFiles(filenames: string[]): ExtractedFileData {
   const out: ExtractedFileData = { detections: [] };
@@ -14,12 +13,12 @@ export function analyzeFiles(filenames: string[]): ExtractedFileData {
 
     if (/\bamh\b|انتي\s*مولر|amh-|amh_/.test(n)) {
       out.amh = pseudoNumber(name + "-amh", 0.6, 4.2, 1);
-      tags.push(`AMH ≈ ${out.amh}`);
+      tags.push(`هرمون مخزون المبيض تقريباً ${out.amh}`);
     }
     if (/\bfsh\b|fsh-|fsh_/.test(n)) {
       out.fsh = pseudoNumber(name + "-fsh", 4, 12, 1);
       out.hormonal = true;
-      tags.push(`FSH ≈ ${out.fsh}`);
+      tags.push(`هرمون منشّط الجريب تقريباً ${out.fsh}`);
     }
     if (/\blh\b|estradiol|prolactin|tsh|hormone|هرمون/.test(n)) {
       out.hormonal = true;
@@ -38,7 +37,7 @@ export function analyzeFiles(filenames: string[]): ExtractedFileData {
       out.spermMotility = pseudoNumber(name + "-mot", 30, 75, 0);
       out.spermConcentration = pseudoNumber(name + "-conc", 8, 55, 0);
       tags.push(
-        `تحليل سائل منوي (حركة ${out.spermMotility}%، تركيز ${out.spermConcentration}M/ml)`
+        `تحليل سائل منوي — حركة تقريبية ${out.spermMotility}٪، تركيز تقريبي ${out.spermConcentration} مليون/مل`
       );
     }
     if (/beta|hcg|pregnan|حمل|pregtest/.test(n)) {

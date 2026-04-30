@@ -28,6 +28,7 @@
  */
 
 import type { SpeakOptions } from "./speech";
+import { sanitizeAssistantForDisplay } from "./controlledOutput";
 
 export type { SpeakOptions } from "./speech";
 
@@ -53,10 +54,14 @@ const queue: QueueItem[] = [];
 let processing = false;
 
 export function speak(text: string, opts: SpeakOptions = {}): Promise<void> {
-  const trimmed = text.trim();
-  if (!trimmed) {
+  const raw = text.trim();
+  if (!raw) {
     opts.onError?.();
     return Promise.resolve();
+  }
+  const trimmed = sanitizeAssistantForDisplay(raw, { source: "tts.queue" });
+  if (trimmed !== raw) {
+    console.warn("[Speech] utterance sanitized before synthesis");
   }
 
   console.log(`[Speech] queue+ "${preview(trimmed)}"`);

@@ -22,8 +22,14 @@ export interface StepResult {
   autoListen?: boolean;
 }
 
-const ACK = ["تمام", "طيب", "حلو", "أوكي", "ماشي", "تمام كده"];
-const randomOf = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+/**
+ * Natural Egyptian-Arabic acknowledgement variants. We rotate through
+ * them so the assistant doesn't sound robotic; all variants are vetted
+ * Arabic-only copy.
+ */
+const ACK = ["تمام", "طيب", "حلو", "ماشي", "تمام كده"] as const;
+const randomOf = <T>(arr: readonly T[]): T =>
+  arr[Math.floor(Math.random() * arr.length)]!;
 const ack = () => randomOf(ACK);
 
 /** First utterance — warm spoken Egyptian; ellipses → SSML pauses in TTS. */
@@ -180,7 +186,7 @@ export function handleAnswer(
         answers.pcos = false;
       }
       return {
-        assistant: `${ack()}... عملتي تحليل AMH قبل كده؟... لو فاكرة الرقم قوليه... ولو لأ قولي مش عارفة.`,
+        assistant: `${ack()}... عملتي تحليل مخزون المبايض قبل كده؟... لو فاكرة الرقم قوليه... ولو لأ قولي مش عارفة.`,
         next: "amh",
         answers,
         autoListen: true,
@@ -194,7 +200,7 @@ export function handleAnswer(
       ) {
         answers.amh = "unknown";
         return {
-          assistant: `${ack()}... هنحط AMH في التحاليل المقترحة... ومحاولات حَقْن مجهري قبل كده؟... لو آه... كام مرة؟`,
+          assistant: `${ack()}... هنحط تحليل مخزون المبايض في التحاليل المقترحة... ومحاولات حَقْن مجهري قبل كده؟... لو آه... كام مرة؟`,
           next: "previous_ivf",
           answers,
           autoListen: true,
@@ -204,7 +210,7 @@ export function handleAnswer(
       if (n === null || n < 0 || n > 15) {
         return {
           assistant:
-            "قوليلي رقم الـ AMH... زي اتنين فاصلة خمسة... ولو مش فاكرة قولي مش عارفة.",
+            "قوليلي رقم تحليل مخزون المِبْيَض... زي اتنين فاصلة خمسة... ولو مش فاكرة قولي مش عارفة.",
           next: "amh",
           answers,
           autoListen: true,
@@ -397,12 +403,12 @@ export function handleAnswer(
 
 /** Spoken acknowledgement for each new file uploaded during the files step. */
 export function uploadAck(totalFiles: number): string {
-  const lines = [
+  const variants = [
     `تمام... استلمت الملف... لو في حاجة تانية ارفعيها... أنا معاكي... ولو خلصتي قوليلي خلصت.`,
     `حلو... الملف وصل... تقدري ترفعي تاني... أو قولي كده تمام لما نكمّل.`,
     `تمام... الملف عندي... لو في تقارير تانية ارفعيها... ولما تخلصي قولي خلصت.`,
-  ];
-  const base = randomOf(lines);
+  ] as const;
+  const base = randomOf(variants);
   if (totalFiles >= 3) {
     return `${base}... استلمت ${totalFiles} ملفات لحد دلوقتي.`;
   }

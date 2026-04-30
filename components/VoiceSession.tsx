@@ -16,8 +16,12 @@ import {
 } from "@/lib/speech";
 import { cancelSpeak, prefetchSpeech, speak } from "@/lib/tts-elevenlabs";
 import { clearSession, saveSession } from "@/lib/session";
+import { sanitizeAssistantForDisplay } from "@/lib/controlledOutput";
 
 type OrbState = "idle" | "listening" | "thinking" | "speaking";
+
+/** Slight, natural-feeling jitter on the “thinking” pause. */
+const thinkingDelayMs = () => 700 + Math.floor(Math.random() * 400);
 
 const newId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -152,13 +156,26 @@ export default function VoiceSession() {
   }, []);
 
   const speakAssistant = useCallback(
-    async (text: string, autoListen: boolean) => {
+    async (
+      text: string,
+      autoListen: boolean,
+      opts?: { alreadyRecorded?: boolean }
+    ) => {
+      const safeText = sanitizeAssistantForDisplay(text, {
+        step: stateRef.current.step,
+        source: "speakAssistant",
+      });
+      if (safeText !== text.trim()) {
+        console.warn(
+          `[Assistant] replaced unsafe utterance at step=${stateRef.current.step}`
+        );
+      }
       // Per-sentence debug log — operators can tail the browser console
       // during the demo to see exactly which line is being spoken.
       console.log(
-        `[Assistant] step=${stateRef.current.step} autoListen=${autoListen}\n  > ${text}`
+        `[Assistant] step=${stateRef.current.step} autoListen=${autoListen}\n  > ${safeText}`
       );
-      pushMessage("assistant", text);
+      if (!opts?.alreadyRecorded) pushMessage("assistant", safeText);
       setOrbState("speaking");
       // Whenever we start a new utterance, dismiss any stale blocked-audio
       // prompt — this attempt itself may succeed (or be the new failure).
@@ -197,7 +214,7 @@ export default function VoiceSession() {
       // the input audio session and routes output to the speaker.
       stopListening();
 
-      await speak(text, {
+      await speak(safeText, {
         lang: "ar-EG",
         rate: 0.95,
         onAutoplayBlocked: () => {
@@ -205,7 +222,7 @@ export default function VoiceSession() {
           console.warn(
             "[Assistant] autoplay blocked — surfacing manual play button"
           );
-          setBlockedAudio({ text, autoListen });
+          setBlockedAudio({ text: safeText, autoListen });
         },
         onEnd: finish,
         onError: finish,
@@ -230,13 +247,17 @@ export default function VoiceSession() {
 
         if (res.next === "done") {
           const prediction = predict(res.answers);
+          const closingText = sanitizeAssistantForDisplay(res.assistant, {
+            step: currentStep,
+            source: "handleUserText:done",
+          });
           setMessages((prev) => {
             const finalTranscript = [
               ...prev,
               {
                 id: newId(),
                 role: "assistant" as const,
-                text: res.assistant,
+                text: closingText,
                 at: Date.now(),
               },
             ];
@@ -246,16 +267,18 @@ export default function VoiceSession() {
               transcript: finalTranscript,
               completedAt: Date.now(),
             });
-            return prev;
+            return finalTranscript;
           });
-          speakAssistant(res.assistant, false).then(() => {
+          void speakAssistant(closingText, false, {
+            alreadyRecorded: true,
+          }).then(() => {
             setTimeout(() => router.push("/report"), 1200);
           });
           return;
         }
 
         speakAssistant(res.assistant, res.autoListen ?? true);
-      }, 700 + Math.random() * 400);
+      }, thinkingDelayMs());
     },
     [pushMessage, router, speakAssistant, stopListening]
   );
