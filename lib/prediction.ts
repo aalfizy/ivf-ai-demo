@@ -201,21 +201,15 @@ export function predict(
   if (fileCount === 0) {
     confidence = "low";
     spread = 18;
-    nextSteps.push(
-      "يُنصح بعمل التحاليل المقترحة وإعادة التقييم لزيادة دقة النسبة"
-    );
   } else if (fileCount <= 2) {
     confidence = "medium";
     spread = 11;
-    nextSteps.push(
-      "في مزيد من التحاليل لو متاحة هترفع دقة التقييم أكتر"
-    );
   } else {
     confidence = "high";
     spread = 7;
   }
 
-  // --- Categorize ---
+  // --- Categorize (kept internally; UI no longer surfaces percentages) ---
   const mid = clamp(base, 15, 85);
   const low = clamp(Math.round(mid - spread), 8, 90);
   const high = clamp(Math.round(mid + spread), 12, 92);
@@ -226,16 +220,59 @@ export function predict(
   else if (mid < 70) category = "جيدة";
   else category = "مرتفعة";
 
-  // --- Recommended next steps (high level, separate from tests) ---
-  nextSteps.push("حجز معاد مع طبيب أمراض النساء والعقم لمراجعة التقرير");
-  if (riskFactors.length >= 3) {
-    nextSteps.push(
-      "نناقش بروتوكول علاج مخصص بناءً على عوامل الخطر المذكورة"
+  // --- Data sufficiency & missing investigations ---
+  const hasNumericAmh = typeof a.amh === "number";
+  const dataSufficient = fileCount > 0 || hasNumericAmh;
+
+  const missingData: string[] = [];
+  if (!hasNumericAmh && !fd.amh) {
+    missingData.push("تحليل مخزون المبيض (هرمون مقاومة مولر)");
+  }
+  if (!fd.hormonal && fd.fsh === undefined) {
+    missingData.push(
+      "تحليل هرمونات شامل (المنشّط للجريب، اللوتين، الإسترادايول، البرولاكتين، والغدة الدرقية)"
     );
   }
-  nextSteps.push("الحفاظ على نمط حياة صحي: أكل متوازن، نوم كافي، تقليل التوتر");
+  if (!fd.semenAnalysis) {
+    missingData.push("تحليل سائل منوي للزوج");
+  }
+  if (!fd.ultrasound) {
+    missingData.push("سونار مهبلي حديث لتقييم الرحم والمبايض");
+  }
+
+  // --- Value-driven next steps (always present, supportive tone) ---
+  if (!dataSufficient) {
+    nextSteps.push(
+      "نبدأ بعمل التحاليل الأساسية المذكورة... دي اللي تساعد في توضيح المسار العلاجي المناسب"
+    );
+    nextSteps.push(
+      "بعد جاهزية النتائج... نقدر نناقش مع طبيب أمراض النساء والعقم خطة عملية ومناسبة لحالتك"
+    );
+    nextSteps.push(
+      "تواصلي مع فريق المركز باستخدام رقم التقرير المرجعي لتسهيل حجز الفحوصات"
+    );
+  } else {
+    nextSteps.push(
+      "حجز معاد مع طبيب أمراض النساء والعقم لمراجعة التقرير ومناقشة الخطوات العملية"
+    );
+    if (missingData.length > 0) {
+      nextSteps.push(
+        "استكمال التحاليل المتبقية المذكورة... هتساعد في تحديد الخطة بشكل أدق"
+      );
+    }
+    if (riskFactors.length >= 3) {
+      nextSteps.push(
+        "نناقش بروتوكول علاج مخصص بناءً على العوامل اللي اتذكرت في التقرير"
+      );
+    }
+  }
+  nextSteps.push(
+    "الحفاظ على نمط حياة صحي: أكل متوازن، نوم كافي، تقليل التوتر"
+  );
   if (a.age !== undefined && a.age >= 38) {
-    nextSteps.push("مناقشة خيار تجميد البويضات أو فحص الأجنة جينياً قبل الزرع");
+    nextSteps.push(
+      "مناقشة خيار تجميد البويضات أو فحص الأجنة جينياً قبل الزرع كخيارات داعمة"
+    );
   }
 
   // --- Summary ---
@@ -259,18 +296,26 @@ export function predict(
       ? summaryParts.join("، ") + "."
       : "لم يتم تسجيل بيانات كافية.";
 
+  // When investigations are missing, the report must not present any
+  // assessment, impression, or success indication. We blank out the
+  // narrative factors so the UI shows the missing-data view instead.
+  const safeContributing = dataSufficient ? contributingFactors : [];
+  const safeRisks = dataSufficient ? riskFactors : [];
+
   return {
     low,
     high,
     mid,
     category,
     confidence,
-    contributingFactors,
-    riskFactors,
+    contributingFactors: safeContributing,
+    riskFactors: safeRisks,
     suggestedTests: tests,
     nextSteps,
     summary,
     fileFindings: fd.detections,
+    dataSufficient,
+    missingData,
   };
 }
 

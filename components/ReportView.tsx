@@ -10,7 +10,7 @@ import {
   type SessionData,
 } from "@/lib/session";
 import { predict } from "@/lib/prediction";
-import type { Answers, ConfidenceLevel } from "@/lib/types";
+import type { Answers, ConfidenceLevel, PredictionResult } from "@/lib/types";
 import HopeNote from "./HopeNote";
 
 type ConsentState = "idle" | "sending" | "sent";
@@ -102,13 +102,7 @@ export default function ReportView() {
           <HopeNote variant="intro" />
         </div>
 
-        <PredictionHero
-          low={p.low}
-          high={p.high}
-          mid={p.mid}
-          category={p.category}
-          confidence={p.confidence}
-        />
+        <PredictionHero prediction={p} />
 
         <Section title="ملخص الحالة">
           <p className="text-ink-700 leading-7">{p.summary}</p>
@@ -145,8 +139,28 @@ export default function ReportView() {
           </Section>
         )}
 
-        {p.riskFactors.length > 0 && (
-          <Section title="عوامل الخطر">
+        {!p.dataSufficient && p.missingData.length > 0 && (
+          <Section title="بيانات أو تحاليل غير متوفرة">
+            <p className="text-ink-700 leading-7 mb-3">
+              البيانات المتاحة حالياً غير كافية لتقديم تقييم تفصيلي. النقاط
+              التالية لو اتوفرت هتساعد في توضيح المسار العلاجي المناسب:
+            </p>
+            <ul className="space-y-2">
+              {p.missingData.map((m, i) => (
+                <li
+                  key={i}
+                  className="flex items-start gap-3 rounded-xl bg-white/80 border border-ink-100 px-4 py-2 text-ink-700"
+                >
+                  <span className="mt-1 inline-block h-2 w-2 rounded-full bg-ink-400 shrink-0" />
+                  <span className="leading-7">{m}</span>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {p.dataSufficient && p.riskFactors.length > 0 && (
+          <Section title="ملاحظات تستدعي الانتباه">
             <ul className="space-y-2">
               {p.riskFactors.map((f, i) => (
                 <li
@@ -161,7 +175,7 @@ export default function ReportView() {
           </Section>
         )}
 
-        {p.contributingFactors.length > 0 && (
+        {p.dataSufficient && p.contributingFactors.length > 0 && (
           <Section title="نقاط داعمة في الحالة">
             <ul className="space-y-2">
               {p.contributingFactors.map((f, i) => (
@@ -206,6 +220,8 @@ export default function ReportView() {
             ))}
           </ol>
         </Section>
+
+        <ReferenceIdNote />
 
         <Disclaimer />
 
@@ -274,67 +290,67 @@ function stableReportReference(year: number, completedAt?: number): string {
   return `حقن-${year}-${code}`;
 }
 
-function PredictionHero({
-  low,
-  high,
-  mid,
-  category,
-  confidence,
-}: {
-  low: number;
-  high: number;
-  mid: number;
-  category: string;
-  confidence: ConfidenceLevel;
-}) {
+function PredictionHero({ prediction }: { prediction: PredictionResult }) {
+  const insufficient = !prediction.dataSufficient;
+  const headline = insufficient
+    ? "البيانات الحالية غير كافية لتقديم تقييم"
+    : "ملخص مبدئي داعم لاتخاذ القرار";
+  const body = insufficient
+    ? "في الوقت الحالي ما عندناش تحاليل أو فحوصات كافية نعتمد عليها في تقييم الحالة. استكمال النقاط المذكورة في هذا التقرير هيساعد الفريق الطبي يحدد المسار المناسب."
+    : "تشير البيانات الأولية إلى مؤشرات يمكن البناء عليها... وتساعد هذه النتائج في توجيه الخطوات القادمة بشكل أدق مع الفريق الطبي.";
+
   return (
     <div className="relative overflow-hidden rounded-2xl p-6 border border-brand-100 bg-gradient-to-br from-white to-brand-50">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
-        <div>
-          <p className="text-xs text-brand-700 font-medium">
-            احتمالية النجاح المبدئية
-          </p>
-          <div className="mt-1 flex items-baseline gap-2 text-ink-900">
-            <span className="text-4xl font-bold">{low}%</span>
-            <span className="text-ink-400">—</span>
-            <span className="text-4xl font-bold">{high}%</span>
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="text-sm text-ink-600">
-              التصنيف:{" "}
-              <span className="font-semibold text-ink-900">{category}</span>
-            </span>
-            <ConfidenceBadge level={confidence} />
-          </div>
-        </div>
-        <div className="w-full sm:w-56">
-          <ConfidenceGauge value={mid} />
-        </div>
+      <p className="text-xs text-brand-700 font-medium">{headline}</p>
+      <p className="mt-2 text-ink-800 leading-7 text-sm sm:text-base">{body}</p>
+      <div className="mt-3">
+        <SupportIndicator
+          confidence={prediction.confidence}
+          insufficient={insufficient}
+        />
       </div>
     </div>
   );
 }
 
-function ConfidenceBadge({ level }: { level: ConfidenceLevel }) {
+/**
+ * Soft, non-numeric badge that signals how complete the input was —
+ * never a “success rate”. We deliberately avoid words like high/medium/low
+ * success and only describe the breadth of available data.
+ */
+function SupportIndicator({
+  confidence,
+  insufficient,
+}: {
+  confidence: ConfidenceLevel;
+  insufficient: boolean;
+}) {
+  if (insufficient) {
+    return (
+      <span className="inline-flex items-center gap-2 text-xs px-2.5 py-1 rounded-full border bg-amber-50 text-amber-800 border-amber-200">
+        <span className="h-2 w-2 rounded-full bg-amber-500" />
+        بحاجة لاستكمال البيانات
+      </span>
+    );
+  }
   const map = {
     high: {
-      label: "ثقة عالية",
-      className:
-        "bg-mint-100 text-mint-700 border-mint-200",
+      label: "البيانات المتوفرة شاملة",
+      className: "bg-mint-100 text-mint-700 border-mint-200",
       dot: "bg-mint-500",
     },
     medium: {
-      label: "ثقة متوسطة",
+      label: "البيانات المتوفرة جزئية",
       className: "bg-brand-50 text-brand-700 border-brand-200",
       dot: "bg-brand-500",
     },
     low: {
-      label: "ثقة مبدئية",
+      label: "البيانات المتوفرة مبدئية",
       className: "bg-amber-50 text-amber-800 border-amber-200",
       dot: "bg-amber-500",
     },
   } as const;
-  const cfg = map[level];
+  const cfg = map[confidence];
   return (
     <span
       className={[
@@ -345,25 +361,6 @@ function ConfidenceBadge({ level }: { level: ConfidenceLevel }) {
       <span className={["h-2 w-2 rounded-full", cfg.dot].join(" ")} />
       {cfg.label}
     </span>
-  );
-}
-
-function ConfidenceGauge({ value }: { value: number }) {
-  const v = Math.max(0, Math.min(100, value));
-  return (
-    <div>
-      <div className="h-3 w-full rounded-full bg-ink-100 overflow-hidden">
-        <div
-          className="h-full bg-gradient-to-r from-brand-500 via-brand-400 to-mint-400 transition-all duration-700"
-          style={{ width: `${v}%` }}
-        />
-      </div>
-      <div className="mt-1 flex justify-between text-[10px] text-ink-400">
-        <span>0%</span>
-        <span>50%</span>
-        <span>100%</span>
-      </div>
-    </div>
   );
 }
 
@@ -474,10 +471,21 @@ function DataGrid({ answers }: { answers: Answers }) {
 
 function Disclaimer() {
   return (
-    <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 text-sm leading-7">
+    <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 text-sm leading-7">
       <strong className="block mb-1">تنويه مهم</strong>
-      ده تقييم مبدئي مبني على البيانات المقدمة فقط، ولا يغني عن زيارة الطبيب
-      المختص. القرار النهائي بيعتمد على الفحص السريري والتحاليل الفعلية.
+      هذا التقرير يهدف لدعم اتخاذ القرار فقط، وما بياخدش أي قرار طبي. القرار
+      النهائي مرجعه الفحص السريري والتحاليل الفعلية مع الطبيب المختص.
+    </div>
+  );
+}
+
+function ReferenceIdNote() {
+  return (
+    <div className="mt-7 rounded-2xl border border-ink-100 bg-white/70 p-4 text-ink-700 text-sm leading-7">
+      <strong className="block mb-1 text-ink-900">الخصوصية ورقم التقرير</strong>
+      تم استخدام رقم مرجعي للتقرير في الأعلى بدل أي بيانات شخصية، حفاظاً على
+      خصوصية المريضة. تقدري تستخدمي هذا الرقم عند التواصل مع الفريق الطبي
+      للرجوع لنفس التقرير من غير الحاجة لمشاركة معلومات إضافية.
     </div>
   );
 }

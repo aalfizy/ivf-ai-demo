@@ -70,4 +70,13 @@ export interface PredictionResult {
   summary: string;
   /** Detected items extracted from uploaded files */
   fileFindings: { filename: string; tags: string[] }[];
+  /**
+   * True when the user provided at least one objective clinical input
+   * (e.g. a numeric AMH or any uploaded report). When false, the UI
+   * must avoid presenting any impression / success indication and
+   * surface the missing-data list instead.
+   */
+  dataSufficient: boolean;
+  /** Human-readable list of investigations / data points not provided. */
+  missingData: string[];
 }

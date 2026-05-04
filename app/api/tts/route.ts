@@ -5,6 +5,55 @@ export const dynamic = "force-dynamic";
 
 const ELEVENLABS_BASE = "https://api.elevenlabs.io/v1";
 
+/**
+ * Voice is **locked** to a single ElevenLabs voice for the whole app.
+ *
+ * Resolution order (resolved ONCE at module load — never per request):
+ *   1. process.env.ELEVENLABS_VOICE_ID (if set AND well-formed)
+ *   2. CANONICAL_VOICE_ID below
+ *
+ * The client body NEVER influences voice selection. There is no
+ * "random", "default", or per-request voice picking. Every request
+ * uses this exact same voice_id, sent explicitly in the URL and
+ * echoed back in the X-Voice-Id response header.
+ */
+const CANONICAL_VOICE_ID = "EXAVITQu4vr4xnSDxMaL" as const;
+/** ElevenLabs voice IDs are short alphanumeric tokens (~20 chars). */
+const VOICE_ID_FORMAT = /^[A-Za-z0-9]{16,32}$/;
+
+const LOCKED_VOICE_ID: string = (() => {
+  const fromEnv = process.env.ELEVENLABS_VOICE_ID?.trim();
+  if (fromEnv && VOICE_ID_FORMAT.test(fromEnv)) {
+    if (fromEnv !== CANONICAL_VOICE_ID) {
+      console.log(
+        `[TTS] voice locked from env  voice=${fromEnv}  (canonical=${CANONICAL_VOICE_ID})`
+      );
+    } else {
+      console.log(`[TTS] voice locked  voice=${fromEnv}`);
+    }
+    return fromEnv;
+  }
+  if (fromEnv) {
+    console.warn(
+      `[TTS] ignoring malformed ELEVENLABS_VOICE_ID="${fromEnv}" — falling back to canonical voice`
+    );
+  } else {
+    console.log(`[TTS] voice locked  voice=${CANONICAL_VOICE_ID} (canonical)`);
+  }
+  return CANONICAL_VOICE_ID;
+})();
+
+/** Hard-locked TTS model — never overridable. */
+const LOCKED_MODEL_ID = "eleven_multilingual_v2" as const;
+
+/** Hard-locked voice settings — applied to every request. */
+const LOCKED_VOICE_SETTINGS = {
+  stability: 0.4,
+  similarity_boost: 0.7,
+  style: 0.3,
+  use_speaker_boost: true,
+} as const;
+
 interface TTSBody {
   text?: string;
 }
@@ -14,10 +63,11 @@ interface TTSBody {
  * The API key is read from process.env.ELEVENLABS_API_KEY and never
  * sent to the browser.
  *
- * Body: { text: string }
+ * Body: { text: string }   ← only `text` is read; any other field is ignored.
  * Response: audio/mpeg stream
  *
- * Voice: fixed from ELEVENLABS_VOICE_ID only (never from request body).
+ * Voice / model / voice_settings are LOCKED at module scope above and
+ * are sent explicitly on every request.
  */
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
@@ -37,14 +87,10 @@ export async function POST(req: NextRequest) {
   if (!text) return jsonError("empty_text", 400);
   if (text.length > 1500) return jsonError("text_too_long", 413);
 
-  // Voice is fixed — env only. Never read from the client body.
-  const voiceId =
-    process.env.ELEVENLABS_VOICE_ID?.trim() || "EXAVITQu4vr4xnSDxMaL";
-
-  // Model is hard-locked. Do NOT read from env — a stale .env file or a
-  // misconfigured deployment must never silently switch models. This is
-  // the only Arabic-stable model and we depend on its prosody.
-  const modelId = "eleven_multilingual_v2";
+  // Defensive: ignore any voice_id / model_id passed by the client. The
+  // locked values above are the ONLY values that ever leave this server.
+  const voiceId = LOCKED_VOICE_ID;
+  const modelId = LOCKED_MODEL_ID;
 
   // Insert SSML break tags around punctuation/ellipses for natural cadence.
   // CRITICAL: this transformation is purely additive — it inserts <break/>
@@ -72,14 +118,11 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({
           text: enriched,
+          // Voice + model + settings are locked and sent explicitly on
+          // every request. Never derived from the client body.
+          voice_id: voiceId,
           model_id: modelId,
-          // Stable, warm Egyptian-Arabic voice profile.
-          voice_settings: {
-            stability: 0.4,
-            similarity_boost: 0.7,
-            style: 0.3,
-            use_speaker_boost: true,
-          },
+          voice_settings: LOCKED_VOICE_SETTINGS,
         }),
       }
     );
