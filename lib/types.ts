@@ -22,6 +22,13 @@ export type StepId =
   | "consent"
   | "done";
 
+/**
+ * Whose voice are we hearing? Inferred from cues in the user's
+ * utterances (e.g. "مراتي" → husband, "جوزي" → wife). Stays
+ * "unknown" until a confident cue is observed; never asked bluntly.
+ */
+export type SpeakerRole = "wife" | "husband" | "unknown";
+
 export interface Answers {
   age?: number;
   duration_years?: number;
@@ -33,6 +40,8 @@ export interface Answers {
   previous_pregnancy?: boolean;
   male_factor?: boolean;
   uploaded_files?: string[];
+  /** Detected speaker — drives gendered phrasing across the dialogue. */
+  speakerRole?: SpeakerRole;
 }
 
 export type ConfidenceLevel = "low" | "medium" | "high";
