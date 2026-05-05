@@ -1,17 +1,30 @@
 "use client";
 
+import type { SpeakerRole } from "@/lib/types";
+import {
+  hopeClosingBody,
+  hopeClosingTitle,
+  hopeIntroBody,
+  hopeIntroTitle,
+} from "@/lib/uiPhrasing";
+
 /**
  * Calm, hopeful supportive note shown on the report screen.
  * Egyptian Arabic, semi-professional, warm tone — never saccharine.
  *
  * Two variants:
  *   "intro"   → top of report, sets a reassuring tone before the numbers
- *   "closing" → after consent success, gentle closing message
+ *   "closing" → gentle closing message
+ *
+ * Wording adapts to the inferred speaker role (wife / husband / unknown)
+ * so written and spoken layers stay in sync.
  */
 export default function HopeNote({
   variant = "intro",
+  role = "unknown",
 }: {
   variant?: "intro" | "closing";
+  role?: SpeakerRole;
 }) {
   if (variant === "closing") {
     return (
@@ -22,13 +35,8 @@ export default function HopeNote({
             <SproutIcon />
           </div>
           <div className="leading-relaxed">
-            <p className="font-semibold text-ink-900">
-              ربنا يقدرلك اللي فيه الخير
-            </p>
-            <p className="text-sm text-ink-600 mt-1">
-              فريق المركز هيتواصل معاكي قريب. خدي وقتك في الراحة، واعتني
-              بنفسك. إحنا معاكي خطوة بخطوة.
-            </p>
+            <p className="font-semibold text-ink-900">{hopeClosingTitle}</p>
+            <p className="text-sm text-ink-600 mt-1">{hopeClosingBody(role)}</p>
           </div>
         </div>
       </div>
@@ -47,12 +55,9 @@ export default function HopeNote({
             رحلة الأمل بدأت
           </p>
           <p className="mt-1 font-semibold text-ink-900 text-base sm:text-lg">
-            خدتي أول خطوة، وده اللي مهم
+            {hopeIntroTitle(role)}
           </p>
-          <p className="mt-1 text-sm text-ink-600">
-            كل رحلة بتبدأ بقرار، وأنتي اتخدتيه. التقرير ده مجرد بداية، والفريق
-            هنا معاكي خطوة بخطوة. يا رب يكون الخبر القادم خير وفرحة.
-          </p>
+          <p className="mt-1 text-sm text-ink-600">{hopeIntroBody(role)}</p>
         </div>
       </div>
     </div>

@@ -1,6 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
+import type { SpeakerRole } from "@/lib/types";
+import {
+  orbIdleLabel,
+  orbListeningLabel,
+  orbSpeakingLabel,
+  orbThinkingLabel,
+} from "@/lib/uiPhrasing";
 
 type State = "idle" | "listening" | "thinking" | "speaking";
 
@@ -8,23 +15,25 @@ export default function VoiceOrb({
   state,
   onClick,
   disabled,
+  role = "unknown",
 }: {
   state: State;
   onClick: () => void;
   disabled?: boolean;
+  role?: SpeakerRole;
 }) {
   const label = useMemo(() => {
     switch (state) {
       case "listening":
-        return "بتسمعك دلوقتي…";
+        return orbListeningLabel;
       case "thinking":
-        return "بتفكر…";
+        return orbThinkingLabel;
       case "speaking":
-        return "بترد عليكي…";
+        return orbSpeakingLabel(role);
       default:
-        return "اضغطي علشان تبدأي الكلام";
+        return orbIdleLabel(role);
     }
-  }, [state]);
+  }, [state, role]);
 
   const showRings = state === "listening" || state === "speaking";
 

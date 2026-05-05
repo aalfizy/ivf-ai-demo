@@ -17,6 +17,15 @@ import {
 import { cancelSpeak, prefetchSpeech, speak } from "@/lib/tts-elevenlabs";
 import { clearSession, saveSession } from "@/lib/session";
 import { sanitizeAssistantForDisplay } from "@/lib/controlledOutput";
+import {
+  introHeadline,
+  introInstruction,
+  micGenericError,
+  micPermissionDenied,
+  speechNotSupported,
+  uploadHintEmpty,
+  uploadHintReceived,
+} from "@/lib/uiPhrasing";
 
 type OrbState = "idle" | "listening" | "thinking" | "speaking";
 
@@ -137,12 +146,11 @@ export default function VoiceSession() {
           }, 300);
           return;
         }
+        const role = stateRef.current.answers.speakerRole ?? "unknown";
         if (err === "not-allowed" || err === "service-not-allowed") {
-          setError(
-            "مش قادرين نوصل للميكروفون. من فضلك اسمحي للموقع باستخدام الميكروفون."
-          );
+          setError(micPermissionDenied(role));
         } else if (err !== "aborted") {
-          setError("حصلت مشكلة في الاستماع. جربي تاني.");
+          setError(micGenericError(role));
         }
         setOrbState("idle");
       },
@@ -286,7 +294,9 @@ export default function VoiceSession() {
   const handleOrbClick = useCallback(() => {
     if (!supported) {
       setError(
-        "المتصفح ده مش بيدعم التعرف على الصوت. جرّبي Google Chrome أو Edge على كمبيوتر أو أندرويد."
+        speechNotSupported(
+          stateRef.current.answers.speakerRole ?? "unknown"
+        )
       );
       return;
     }
@@ -404,6 +414,7 @@ export default function VoiceSession() {
   const fileFindings = isFilesStep
     ? analyzeFiles(answers.uploaded_files ?? [])
     : null;
+  const role = answers.speakerRole ?? "unknown";
 
   return (
     <div className="w-full max-w-2xl mx-auto">
@@ -423,7 +434,7 @@ export default function VoiceSession() {
         </div>
 
         <div className="mt-10 flex flex-col items-center gap-8">
-          <VoiceOrb state={orbState} onClick={handleOrbClick} />
+          <VoiceOrb state={orbState} onClick={handleOrbClick} role={role} />
 
           {blockedAudio && (
             <button
@@ -440,11 +451,10 @@ export default function VoiceSession() {
           {!started && (
             <div className="text-center max-w-md animate-fade-in-up">
               <h2 className="text-ink-800 text-xl font-semibold mb-2">
-                تقييم مبدئي للحقن المجهري
+                {introHeadline}
               </h2>
               <p className="text-ink-500 text-sm leading-relaxed">
-                اضغطي على الميكروفون وهاسألك شوية أسئلة بسيطة. جاوبي بصوتك بالراحة،
-                وفي الآخر هاقدملك تقرير مبدئي.
+                {introInstruction}
               </p>
             </div>
           )}
@@ -464,6 +474,7 @@ export default function VoiceSession() {
               <UploadHint
                 count={fileCount}
                 findings={fileFindings?.detections ?? []}
+                role={role}
               />
             )}
 
@@ -471,6 +482,7 @@ export default function VoiceSession() {
               files={answers.uploaded_files ?? []}
               onFilesChange={handleFilesChange}
               highlighted={isFilesStep}
+              role={role}
             />
 
             <div className="flex items-center justify-between gap-2 pt-2">
@@ -503,17 +515,17 @@ export default function VoiceSession() {
 function UploadHint({
   count,
   findings,
+  role,
 }: {
   count: number;
   findings: { filename: string; tags: string[] }[];
+  role: import("@/lib/types").SpeakerRole;
 }) {
   return (
     <div className="rounded-2xl border border-brand-100 bg-gradient-to-br from-brand-50/70 to-mint-50/70 p-4 text-sm text-ink-700 animate-fade-in-up">
       <div className="flex items-center justify-between gap-3">
         <p className="font-medium text-ink-800">
-          {count === 0
-            ? "لو عندك تحاليل أو أشعة، ارفعيها دلوقتي ◆ هترفع دقة التقييم."
-            : `استلمت ${count} ملف. تقدري ترفعي تاني، ولما تخلصي قولي "خلصت".`}
+          {count === 0 ? uploadHintEmpty(role) : uploadHintReceived(role, count)}
         </p>
       </div>
 

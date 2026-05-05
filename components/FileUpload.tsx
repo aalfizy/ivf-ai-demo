@@ -1,15 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { SpeakerRole } from "@/lib/types";
+import {
+  fileUploadChooseLabel,
+  fileUploadHelp,
+  fileUploadTitle,
+} from "@/lib/uiPhrasing";
 
 export default function FileUpload({
   files,
   onFilesChange,
   highlighted,
+  role = "unknown",
 }: {
   files: string[];
   onFilesChange: (names: string[], added: string[]) => void;
   highlighted?: boolean;
+  role?: SpeakerRole;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [pulse, setPulse] = useState(false);
@@ -62,13 +70,9 @@ export default function FileUpload({
           </div>
           <div>
             <p className="text-sm text-ink-800 font-medium">
-              {highlighted
-                ? "ارفعي تحاليلك هنا — ساعدتي في تقييم أدق"
-                : "ارفعي تحاليل أو تقارير (اختياري)"}
+              {fileUploadTitle(role, !!highlighted)}
             </p>
-            <p className="text-xs text-ink-500">
-              PDF أو صورة. تقدري ترفعي أكتر من ملف، ولما تخلصي قولي "خلصت".
-            </p>
+            <p className="text-xs text-ink-500">{fileUploadHelp(role)}</p>
           </div>
         </div>
         <span
@@ -79,7 +83,7 @@ export default function FileUpload({
               : "text-brand-700 bg-brand-50",
           ].join(" ")}
         >
-          {highlighted ? "اختاري ملف" : "اختيار"}
+          {fileUploadChooseLabel(role, !!highlighted)}
         </span>
         <input
           ref={inputRef}
