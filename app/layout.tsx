@@ -9,9 +9,18 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: "المساعد الذكي لأطفال الأنابيب",
+  title: "Zorrya AI — AI-Powered Fertility Intelligence Platform",
   description:
-    "Voice-first IVF (ICSI) assistant — initial assessment demo. For presentation purposes only.",
+    "Zorrya AI — AI-Powered Fertility Intelligence Platform. Powered by SERVERAT.",
+  applicationName: "Zorrya AI",
+  authors: [{ name: "SERVERAT" }],
+  generator: "Zorrya AI",
+  keywords: [
+    "Zorrya AI",
+    "Fertility Intelligence",
+    "AI Healthcare",
+    "SERVERAT",
+  ],
 };
 
 export const viewport: Viewport = {

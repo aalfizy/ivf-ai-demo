@@ -429,7 +429,7 @@ export default function VoiceSession() {
           }}
         />
 
-        <div className="mt-6">
+        <div className="mt-6 border-t border-ink-100/70 pt-7">
           <ProgressSteps current={step} />
         </div>
 
@@ -508,6 +508,12 @@ export default function VoiceSession() {
       <p className="mt-4 text-center text-[11px] text-ink-400">
         ده عرض توضيحي لأغراض العرض فقط ولا يغني عن استشارة الطبيب المختص.
       </p>
+      <p
+        dir="ltr"
+        className="mt-3 text-center text-[9px] tracking-[0.2em] uppercase text-ink-400/70"
+      >
+        Powered by <span className="font-medium text-ink-500">SERVERAT</span>
+      </p>
     </div>
   );
 }
@@ -560,28 +566,31 @@ function Header({
   onToggleMute: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <div className="relative h-10 w-10 rounded-2xl bg-gradient-to-br from-brand-500 to-mint-400 shadow-soft flex items-center justify-center text-white">
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-5 min-w-0">
+        <img
+          src="/images/zorrya-logo.png"
+          alt="Zorrya AI"
+          width={819}
+          height={1024}
+          decoding="async"
+          fetchPriority="high"
+          className="h-[104px] sm:h-[128px] w-auto shrink-0 select-none"
+          draggable={false}
+        />
+        <div className="min-w-0">
+          <p className="text-ink-900 text-xl sm:text-2xl font-bold leading-tight">
+            المساعد الذكي للخصوبة
+          </p>
+          <p
+            dir="ltr"
+            className="mt-2 text-[11px] sm:text-xs font-medium uppercase tracking-[0.14em] text-ink-500 leading-snug"
           >
-            <path d="M12 21s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.65-7 10-7 10Z" />
-          </svg>
-        </div>
-        <div className="leading-tight">
-          <p className="text-ink-800 font-semibold">المساعد الذكي</p>
-          <p className="text-ink-500 text-xs">تقييم مبدئي لأطفال الأنابيب</p>
+            AI-Powered Fertility Intelligence Platform
+          </p>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         <button
           onClick={onToggleMute}
           title={muted ? "تشغيل الصوت" : "كتم الصوت"}

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import BrandingLogo from "@/components/BrandingLogo";
 import {
   clearSession,
   loadSession,
@@ -43,9 +42,6 @@ export default function ReportView() {
   if (!data) {
     return (
       <div className="w-full max-w-3xl mx-auto space-y-4">
-        <div className="flex justify-start print:hidden">
-          <BrandingLogo variant="inline" />
-        </div>
         <div className="glass rounded-3xl p-8 text-center shadow-soft">
           <p className="text-ink-600">{noSessionMessage}</p>
           <Link
@@ -74,8 +70,7 @@ export default function ReportView() {
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <BrandingLogo variant="inline" />
+      <div className="flex flex-wrap items-center justify-end gap-3 print:hidden">
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href="/"
@@ -240,6 +235,13 @@ export default function ReportView() {
           />
         </div>
       </article>
+
+      <p
+        dir="ltr"
+        className="text-center text-[9px] tracking-[0.2em] uppercase text-ink-400/70 pb-2 print:pt-2"
+      >
+        Powered by <span className="font-medium text-ink-500">SERVERAT</span>
+      </p>
     </div>
   );
 }
@@ -252,8 +254,31 @@ function ReportHeader({ referenceId }: { referenceId: string }) {
     day: "numeric",
   });
   return (
-    <header className="flex items-start justify-between gap-4 border-b border-ink-100 pb-5 mb-6">
-      <div>
+    <header className="border-b border-ink-100 pb-5 mb-6">
+      <div className="flex items-center gap-5">
+        <img
+          src="/images/zorrya-logo.png"
+          alt="Zorrya AI"
+          width={819}
+          height={1024}
+          decoding="async"
+          className="h-[104px] sm:h-[128px] w-auto shrink-0 select-none"
+          draggable={false}
+        />
+        <div className="min-w-0">
+          <p className="text-ink-900 text-xl sm:text-2xl font-bold leading-tight">
+            المساعد الذكي للخصوبة
+          </p>
+          <p
+            dir="ltr"
+            className="mt-2 text-[11px] sm:text-xs font-medium uppercase tracking-[0.14em] text-ink-500 leading-snug"
+          >
+            AI-Powered Fertility Intelligence Platform
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5">
         <p className="text-[11px] tracking-widest text-brand-700">
           تقرير تقييم مبدئي للحقن المجهري
         </p>
@@ -263,20 +288,6 @@ function ReportHeader({ referenceId }: { referenceId: string }) {
         <p className="mt-1 text-sm text-ink-500">
           تاريخ التقرير: {date} · مرجع: {referenceId}
         </p>
-      </div>
-      <div className="shrink-0 h-12 w-12 rounded-2xl bg-gradient-to-br from-brand-500 to-mint-400 flex items-center justify-center text-white shadow-soft">
-        <svg
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M12 21s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.65-7 10-7 10Z" />
-        </svg>
       </div>
     </header>
   );
