@@ -418,7 +418,7 @@ export default function VoiceSession() {
 
   return (
     <div className="w-full max-w-2xl mx-auto">
-      <div className="glass rounded-3xl p-6 sm:p-10 shadow-soft animate-fade-in">
+      <div className="glass rounded-3xl p-5 sm:p-10 shadow-soft animate-fade-in">
         <Header
           onReset={handleReset}
           muted={muted}
@@ -429,11 +429,11 @@ export default function VoiceSession() {
           }}
         />
 
-        <div className="mt-6 border-t border-ink-100/70 pt-7">
+        <div className="mt-5 sm:mt-6 border-t border-ink-100/70 pt-5 sm:pt-7">
           <ProgressSteps current={step} />
         </div>
 
-        <div className="mt-10 flex flex-col items-center gap-8">
+        <div className="mt-8 sm:mt-10 flex flex-col items-center gap-7 sm:gap-8">
           <VoiceOrb state={orbState} onClick={handleOrbClick} role={role} />
 
           {blockedAudio && (
@@ -566,8 +566,8 @@ function Header({
   onToggleMute: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-5 min-w-0">
+    <div className="flex items-start justify-between gap-2 sm:gap-3">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5 min-w-0 flex-1">
         <img
           src="/images/zorrya-logo.png"
           alt="Zorrya AI"
@@ -575,30 +575,31 @@ function Header({
           height={1024}
           decoding="async"
           fetchPriority="high"
-          className="h-[104px] sm:h-[128px] w-auto shrink-0 select-none"
+          className="h-[88px] sm:h-[128px] w-auto shrink-0 select-none"
           draggable={false}
         />
         <div className="min-w-0">
-          <p className="text-ink-900 text-xl sm:text-2xl font-bold leading-tight">
+          <p className="text-ink-900 text-base sm:text-2xl font-bold leading-tight">
             المساعد الذكي للخصوبة
           </p>
           <p
             dir="ltr"
-            className="mt-2 text-[11px] sm:text-xs font-medium uppercase tracking-[0.14em] text-ink-500 leading-snug"
+            className="mt-1 sm:mt-2 text-[9px] sm:text-xs font-medium uppercase tracking-[0.08em] sm:tracking-[0.14em] text-ink-500 leading-snug"
           >
             AI-Powered Fertility Intelligence Platform
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <button
-          onClick={onToggleMute}
-          title={muted ? "تشغيل الصوت" : "كتم الصوت"}
-          className="rounded-xl border border-ink-200 bg-white/70 px-3 py-2 text-xs text-ink-700 hover:bg-white transition"
-        >
-          {muted ? "🔇 مكتوم" : "🔊 صوت"}
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={onToggleMute}
+        title={muted ? "تشغيل الصوت" : "كتم الصوت"}
+        aria-label={muted ? "تشغيل الصوت" : "كتم الصوت"}
+        className="shrink-0 rounded-xl border border-ink-200 bg-white/70 px-2 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs text-ink-700 hover:bg-white transition whitespace-nowrap"
+      >
+        <span className="sm:hidden" aria-hidden="true">{muted ? "🔇" : "🔊"}</span>
+        <span className="hidden sm:inline">{muted ? "🔇 مكتوم" : "🔊 صوت"}</span>
+      </button>
     </div>
   );
 }

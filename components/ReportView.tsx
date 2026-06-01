@@ -95,7 +95,7 @@ export default function ReportView() {
         </div>
       </div>
 
-      <article className="glass rounded-3xl p-6 sm:p-10 shadow-soft animate-fade-in-up print:shadow-none print:bg-white">
+      <article className="glass rounded-3xl p-5 sm:p-10 shadow-soft animate-fade-in-up print:shadow-none print:bg-white">
         <ReportHeader referenceId={referenceId} />
 
         <NoSaveWarning />
@@ -255,23 +255,23 @@ function ReportHeader({ referenceId }: { referenceId: string }) {
   });
   return (
     <header className="border-b border-ink-100 pb-5 mb-6">
-      <div className="flex items-center gap-5">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5 min-w-0">
         <img
           src="/images/zorrya-logo.png"
           alt="Zorrya AI"
           width={819}
           height={1024}
           decoding="async"
-          className="h-[104px] sm:h-[128px] w-auto shrink-0 select-none"
+          className="h-[88px] sm:h-[128px] w-auto shrink-0 select-none"
           draggable={false}
         />
         <div className="min-w-0">
-          <p className="text-ink-900 text-xl sm:text-2xl font-bold leading-tight">
+          <p className="text-ink-900 text-base sm:text-2xl font-bold leading-tight">
             المساعد الذكي للخصوبة
           </p>
           <p
             dir="ltr"
-            className="mt-2 text-[11px] sm:text-xs font-medium uppercase tracking-[0.14em] text-ink-500 leading-snug"
+            className="mt-1 sm:mt-2 text-[9px] sm:text-xs font-medium uppercase tracking-[0.08em] sm:tracking-[0.14em] text-ink-500 leading-snug"
           >
             AI-Powered Fertility Intelligence Platform
           </p>
