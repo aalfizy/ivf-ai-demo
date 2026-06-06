@@ -438,6 +438,7 @@ export default function VoiceSession() {
         </div>
 
         <div className="mt-8 sm:mt-10 flex flex-col items-center gap-7 sm:gap-8">
+          <PrivacyReassurance />
           <VoiceOrb state={orbState} onClick={handleOrbClick} role={role} />
 
           {blockedAudio && (
@@ -554,6 +555,57 @@ function UploadHint({
         </ul>
       )}
     </div>
+  );
+}
+
+/**
+ * Small, always-visible reassurance pill shown directly above the
+ * microphone orb. Communicates the privacy guarantee BEFORE the user
+ * speaks — this is consistently the highest-trust signal for fertility
+ * patients evaluating whether to share sensitive information.
+ *
+ * Design notes:
+ *   - Soft teal/brand gradient matches the rest of the app's palette.
+ *   - Centred above the orb so it visually anchors the mic affordance.
+ *   - Lock icon sits BEFORE the Arabic text in source order; the
+ *     wrapping element is RTL so the lock renders on the right (which
+ *     reads first in Arabic) without us having to reverse the markup.
+ *   - Border + soft shadow give it presence without competing with the
+ *     orb. Stays the same on mobile and desktop — the orb scales but
+ *     the privacy pill keeps a consistent compact size.
+ */
+function PrivacyReassurance() {
+  return (
+    <div
+      dir="rtl"
+      role="note"
+      aria-label="إشعار خصوصية: محادثتك آمنة وسرية"
+      className="animate-fade-in-up inline-flex items-center gap-2 rounded-full border border-brand-200/70 bg-gradient-to-l from-brand-50/80 via-white/80 to-mint-50/80 px-3.5 py-1.5 text-[12px] sm:text-[13px] font-medium text-brand-700 shadow-soft backdrop-blur-sm"
+    >
+      <LockShieldIcon />
+      <span>محادثتك آمنة وسرية</span>
+    </div>
+  );
+}
+
+function LockShieldIcon() {
+  return (
+    <svg
+      aria-hidden
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="text-brand-600 shrink-0"
+    >
+      <rect x="5" y="10" width="14" height="10" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      <circle cx="12" cy="15" r="1.4" fill="currentColor" stroke="none" />
+    </svg>
   );
 }
 
