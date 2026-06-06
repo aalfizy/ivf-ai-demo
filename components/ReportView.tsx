@@ -98,6 +98,8 @@ export default function ReportView() {
       <article className="glass rounded-3xl p-5 sm:p-10 shadow-soft animate-fade-in-up print:shadow-none print:bg-white">
         <ReportHeader referenceId={referenceId} />
 
+        <PatientIdentifierBanner referenceId={referenceId} />
+
         <NoSaveWarning />
 
         <div className="mb-6">
@@ -114,21 +116,56 @@ export default function ReportView() {
           <DataGrid answers={a} />
         </Section>
 
-        {p.fileFindings.length > 0 && (
-          <Section title="الملفات المرفوعة وما تم استخراجه منها">
-            <ul className="space-y-2">
-              {p.fileFindings.map((f) => (
+        {p.reviewedDocuments.length > 0 && (
+          <Section title="الوثائق السريرية التي تمت مراجعتها">
+            <p className="text-xs text-ink-500 mb-3 leading-6">
+              يتم عرض نوع كل وثيقة دون أي أسماء ملفات حفاظاً على خصوصية
+              المريض. {" "}
+              <span dir="ltr" className="font-medium text-ink-600">
+                Clinical Documents Reviewed
+              </span>
+            </p>
+            <ul className="grid sm:grid-cols-2 gap-2">
+              {p.reviewedDocuments.map((doc, i) => (
                 <li
-                  key={f.filename}
-                  className="flex flex-wrap items-start justify-between gap-2 rounded-xl bg-white/80 border border-brand-100 px-4 py-3"
+                  key={`${doc.en}-${i}`}
+                  className="flex items-start gap-3 rounded-xl bg-white/80 border border-brand-100 px-4 py-3"
                 >
-                  <span className="text-sm font-medium text-ink-800 truncate">
-                    {f.filename}
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+                    <DocReviewedIcon />
+                  </span>
+                  <span className="flex flex-col min-w-0">
+                    <span className="text-sm font-semibold text-ink-800 leading-tight">
+                      {doc.ar}
+                    </span>
+                    <span
+                      dir="ltr"
+                      className="text-[11px] uppercase tracking-wide text-ink-500 leading-tight"
+                    >
+                      {doc.en}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {p.fileFindings.length > 0 && (
+          <Section title="ملاحظات مستخرجة من الوثائق">
+            <ul className="space-y-2">
+              {p.fileFindings.map((f, i) => (
+                <li
+                  key={`${f.documentType.en}-${i}`}
+                  className="flex flex-wrap items-start justify-between gap-2 rounded-xl bg-white/80 border border-mint-100 px-4 py-3"
+                >
+                  <span className="text-sm font-medium text-ink-800">
+                    {f.documentType.ar}
                   </span>
                   <span className="flex flex-wrap gap-1.5">
-                    {f.tags.map((t) => (
+                    {f.tags.map((t, ti) => (
                       <span
-                        key={t}
+                        key={`${t}-${ti}`}
                         className="text-[11px] px-2 py-0.5 rounded-full bg-mint-50 text-mint-700 border border-mint-200"
                       >
                         {t}
@@ -278,18 +315,115 @@ function ReportHeader({ referenceId }: { referenceId: string }) {
         </div>
       </div>
 
-      <div className="mt-5">
-        <p className="text-[11px] tracking-widest text-brand-700">
-          تقرير تقييم مبدئي للحقن المجهري
-        </p>
-        <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-ink-900">
-          التقرير المبدئي للحقن المجهري
-        </h1>
-        <p className="mt-1 text-sm text-ink-500">
-          تاريخ التقرير: {date} · مرجع: {referenceId}
-        </p>
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[11px] tracking-widest text-brand-700">
+            تقرير تقييم مبدئي للحقن المجهري
+          </p>
+          <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-ink-900">
+            التقرير المبدئي للحقن المجهري
+          </h1>
+          <p className="mt-1 text-sm text-ink-500">تاريخ التقرير: {date}</p>
+        </div>
+
+        <div
+          className="shrink-0 rounded-2xl border-2 border-brand-500 bg-white px-4 py-2 shadow-soft print:shadow-none"
+          aria-label="رقم تعريف المريض"
+        >
+          <p
+            dir="ltr"
+            className="text-[9px] uppercase tracking-[0.18em] text-brand-700 font-semibold leading-tight"
+          >
+            Patient Reference ID
+          </p>
+          <p className="text-[10px] text-ink-500 leading-tight">
+            رقم تعريف المريض
+          </p>
+          <p
+            dir="ltr"
+            className="mt-0.5 text-lg sm:text-xl font-bold text-ink-900 tracking-wider"
+          >
+            {referenceId}
+          </p>
+        </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * Secondary, full-width identifier band shown just under the header.
+ * Repeats the patient reference ID in a high-contrast strip so it stays
+ * unmissable on every exported PDF — and so physicians can identify the
+ * report at a glance without any patient name being present.
+ */
+function PatientIdentifierBanner({ referenceId }: { referenceId: string }) {
+  return (
+    <div className="mb-5 rounded-2xl border border-brand-200 bg-gradient-to-l from-brand-50 via-white to-brand-50 px-4 py-3 flex flex-wrap items-center justify-between gap-2 print:border-brand-300">
+      <div className="flex items-center gap-3 min-w-0">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-soft">
+          <IdBadgeIcon />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-[0.16em] text-brand-700 font-semibold leading-tight">
+            معرّف التقرير الخاص بالمريض
+          </p>
+          <p
+            dir="ltr"
+            className="text-[10px] uppercase tracking-[0.16em] text-ink-500 leading-tight"
+          >
+            Patient Reference ID (used instead of patient name)
+          </p>
+        </div>
+      </div>
+      <p
+        dir="ltr"
+        className="text-base sm:text-lg font-bold text-ink-900 tracking-wider"
+      >
+        {referenceId}
+      </p>
+    </div>
+  );
+}
+
+function IdBadgeIcon() {
+  return (
+    <svg
+      aria-hidden
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="9" cy="12" r="2.5" />
+      <path d="M14 10h4" />
+      <path d="M14 14h4" />
+    </svg>
+  );
+}
+
+function DocReviewedIcon() {
+  return (
+    <svg
+      aria-hidden
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <path d="m9 14 2 2 4-4" />
+    </svg>
   );
 }
 
@@ -460,9 +594,9 @@ function DataGrid({ answers }: { answers: Answers }) {
           : "—",
     },
     {
-      label: "ملفات مرفوعة",
+      label: "وثائق مرفقة",
       value: answers.uploaded_files?.length
-        ? `${answers.uploaded_files.length} ملف`
+        ? `${answers.uploaded_files.length} وثيقة سريرية`
         : "لا يوجد",
     },
   ];
@@ -507,7 +641,7 @@ function ReferenceIdNote({ role }: { role: SpeakerRole }) {
  */
 function NoSaveWarning() {
   return (
-    <div className="mb-5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-amber-900 text-xs leading-6 print:hidden">
+    <div className="mb-5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-amber-900 text-xs leading-6">
       <svg
         aria-hidden
         width="16"
@@ -525,7 +659,9 @@ function NoSaveWarning() {
         <path d="M12 16h0" />
       </svg>
       <span>
-        التقرير لن يتم حفظه تلقائيًا، يُفضل الاحتفاظ به قبل إغلاق الصفحة.
+        التقرير لا يُحفظ على أي خادم، ولا يتم الاحتفاظ بالبيانات أو
+        الملفات بعد انتهاء الجلسة. يُفضّل تحميل التقرير قبل إغلاق
+        الصفحة.
       </span>
     </div>
   );
@@ -549,9 +685,8 @@ function CompletionActions({
   const whatsappHref = useMemo(() => {
     const message =
       `السلام عليكم،\n` +
-      `حابب أتواصل بخصوص تقرير التقييم المبدئي للحقن المجهري.\n` +
-      `رقم التقرير المرجعي: ${referenceId}\n` +
-      `ياريت يتم مراجعة التقرير والتواصل معايا. شكراً.`;
+      `حابب أشارك تقرير التقييم المبدئي للحقن المجهري الخاص بي.\n` +
+      `رقم التقرير المرجعي: ${referenceId}`;
     const phone = (process.env.NEXT_PUBLIC_CLINIC_WHATSAPP ?? "").trim();
     const base = phone
       ? `https://wa.me/${encodeURIComponent(phone)}`
@@ -581,9 +716,9 @@ function CompletionActions({
           </a>
         </div>
         <p className="mt-4 text-sm text-ink-700 leading-7">
-          يرجى الاحتفاظ بالتقرير أو رقم التقرير قبل إغلاق الصفحة. في حال
-          رغبتك في مناقشة التقرير، يمكنك التواصل مع المركز وذكر رقم التقرير،
-          أو إرساله عبر واتساب، وسيقوم الفريق الطبي بمراجعته والتواصل معك.
+          يمكنك تحميل التقرير أو إرساله مباشرة عبر واتساب من خلال الزر
+          أعلاه. حفاظًا على خصوصية بياناتك، لا يتم الاحتفاظ بالبيانات أو
+          الملفات بعد انتهاء الجلسة.
         </p>
       </div>
       <HopeNote variant="closing" role={role} />

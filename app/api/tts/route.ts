@@ -43,14 +43,44 @@ const LOCKED_VOICE_ID: string = (() => {
   return CANONICAL_VOICE_ID;
 })();
 
-/** Hard-locked TTS model — never overridable. */
+/**
+ * Hard-locked TTS model — never overridable.
+ *
+ * `eleven_multilingual_v2` is the best-quality Arabic-capable model
+ * currently in general availability. It delivers richer prosody and
+ * cleaner diction than `eleven_turbo_v2_5` (which sacrifices expressivity
+ * for latency) and is more dependable than the still-alpha `eleven_v3`.
+ * For a premium healthcare assistant, expressivity + reliability win.
+ */
 const LOCKED_MODEL_ID = "eleven_multilingual_v2" as const;
 
-/** Hard-locked voice settings — applied to every request. */
+/**
+ * Hard-locked voice settings — applied to every request.
+ *
+ * Premium healthcare-assistant profile (Egyptian Arabic, female, warm):
+ *
+ *   • stability=0.45       slight controlled variability so the voice
+ *                          breathes; full empathy without monotone drift.
+ *   • similarity_boost=0.80  keep close to the chosen voice timbre so it
+ *                          doesn't slip into a generic neutral tone.
+ *   • style=0.45           let the model express warmth and gentle
+ *                          empathy without over-acting — important for
+ *                          sensitive fertility topics.
+ *   • use_speaker_boost=true   crisper, more present voice over speakers
+ *                              and small mobile speakers.
+ *
+ * Trade-off notes:
+ *   - Lowering stability further (<0.35) sounds emotional but starts
+ *     hallucinating pitch on long Arabic words.
+ *   - Raising style >0.6 sounds theatrical / over-dramatic, which is
+ *     inappropriate for medical contexts.
+ *   - similarity_boost <0.6 makes the voice drift from its identity
+ *     between sentences, hurting the "same warm person" perception.
+ */
 const LOCKED_VOICE_SETTINGS = {
-  stability: 0.4,
-  similarity_boost: 0.7,
-  style: 0.3,
+  stability: 0.45,
+  similarity_boost: 0.8,
+  style: 0.45,
   use_speaker_boost: true,
 } as const;
 
@@ -175,17 +205,33 @@ function jsonError(
  * input. Arabic diacritics (tashkeel) like فَتْحَة / كَسْرَة / ضَمَّة /
  * شَدَّة authored inside conversation.ts (e.g. حَقْن, حَمْل, مَنَوي)
  * pass through verbatim so pronunciation hints are honored downstream.
+ *
+ * Pause budget tuned for a warm, unrushed healthcare voice — slightly
+ * longer than "news anchor" defaults so empathetic phrasing has room to
+ * breathe.
  */
 function enrichForNaturalPauses(text: string): string {
   return (
     text
-      // Long pause for ellipsis (Unicode … and triple ASCII dots)
-      .replace(/(\u2026|\.{3})/g, ' <break time="0.55s" /> ')
-      // Long pause after sentence enders (period, Arabic ?, !)
-      .replace(/([.؟!])\s+/g, '$1 <break time="0.45s" /> ')
-      // Short pause after Arabic comma and Latin comma
-      .replace(/([،,])\s+/g, '$1 <break time="0.25s" /> ')
-      // Tiny breath before the closing disclaimer phrase
+      // Long, contemplative pause for ellipsis (Unicode … and triple dots).
+      .replace(/(\u2026|\.{3})/g, ' <break time="0.6s" /> ')
+      // Sentence enders — full settle of the prior thought.
+      .replace(/([.؟!])\s+/g, '$1 <break time="0.5s" /> ')
+      // Commas get a soft breath, not a hard stop.
+      .replace(/([،,])\s+/g, '$1 <break time="0.28s" /> ')
+      // Micro-breath after common Arabic connectors / softeners when
+      // they appear mid-sentence — adds the natural "thinking aloud"
+      // cadence of a clinician.
+      .replace(
+        /(\s)(يعني|بس|طيب|تمام|ماشي|كده|كمان|بصي|بصراحة|في الحقيقة)(\s)/g,
+        '$1$2 <break time="0.18s" /> $3'
+      )
+      // Gentle lift before empathy / supportive openers.
+      .replace(
+        /(\s)(إحنا معاكي|إحنا معاك|إحنا معاكم|ربنا)/g,
+        '$1<break time="0.2s" /> $2'
+      )
+      // Tiny breath before the closing disclaimer phrase.
       .replace(/(تقييم مبدئي)/g, '<break time="0.2s" /> $1')
       .trim()
   );

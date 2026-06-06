@@ -224,7 +224,10 @@ export default function VoiceSession() {
 
       await speak(safeText, {
         lang: "ar-EG",
-        rate: 0.95,
+        // Slightly under 1.0 keeps the voice warm and unhurried — paired
+        // with the SSML <break> tags injected server-side, this yields
+        // a calm, human-paced clinical cadence.
+        rate: 0.93,
         onAutoplayBlocked: () => {
           autoplayWasBlocked = true;
           console.warn(
@@ -524,7 +527,7 @@ function UploadHint({
   role,
 }: {
   count: number;
-  findings: { filename: string; tags: string[] }[];
+  findings: import("@/lib/types").FileDetection[];
   role: import("@/lib/types").SpeakerRole;
 }) {
   return (
@@ -537,14 +540,16 @@ function UploadHint({
 
       {findings.length > 0 && (
         <ul className="mt-3 space-y-1.5">
-          {findings.map((f) => (
+          {findings.map((f, i) => (
             <li
-              key={f.filename}
+              key={`${f.documentType.en}-${i}`}
               className="flex items-start gap-2 text-xs text-ink-600"
             >
               <span className="mt-1 inline-block h-1.5 w-1.5 rounded-full bg-brand-500 shrink-0" />
-              <span className="truncate">
-                <span className="font-medium text-ink-800">{f.filename}</span>
+              <span className="min-w-0">
+                <span className="font-medium text-ink-800">
+                  {f.documentType.ar}
+                </span>
                 {" — "}
                 <span className="text-mint-700">{f.tags.join(" · ")}</span>
               </span>

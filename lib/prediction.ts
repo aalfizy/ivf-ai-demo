@@ -4,7 +4,7 @@ import type {
   ExtractedFileData,
   PredictionResult,
 } from "./types";
-import { analyzeFiles } from "./fileAnalysis";
+import { analyzeFiles, uniqueDocumentTypes } from "./fileAnalysis";
 
 /**
  * Rule-based "fake AI" prediction engine.
@@ -314,6 +314,9 @@ export function predict(
     nextSteps,
     summary,
     fileFindings: fd.detections,
+    reviewedDocuments: uniqueDocumentTypes(
+      fd.detections.map((d) => d.documentType)
+    ),
     dataSufficient,
     missingData,
   };
