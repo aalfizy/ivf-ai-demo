@@ -59,45 +59,8 @@ export default function ReportView() {
   const p = prediction!;
   const role: SpeakerRole = a.speakerRole ?? "unknown";
 
-  /**
-   * Save the report to PDF with a privacy-preserving, deterministic
-   * filename that embeds the Patient Reference ID:
-   *
-   *   Zorrya_AI_Fertility_Report_<ASCII reference id>.pdf
-   *
-   * Implementation notes:
-   *   - Chromium/Edge/Firefox/Safari all default the "Save as PDF"
-   *     filename to `document.title`. We swap the title to the desired
-   *     filename for the duration of the print, then restore it on
-   *     `afterprint`. This works identically on desktop and mobile,
-   *     and requires no extra browser permission or library.
-   *   - The reference id is normalised to ASCII (`PAT-YYYY-NNNNNNN`)
-   *     because some operating-system download dialogs mangle
-   *     non-ASCII filenames, and most clinics need to copy/paste the
-   *     ID into existing EMR systems that don't accept Arabic glyphs.
-   *   - The patient's name is *never* in the title — only the ID.
-   */
   const handlePrint = () => {
-    if (typeof window === "undefined") return;
-    const ascii = toAsciiReference(referenceId);
-    const desiredTitle = `Zorrya_AI_Fertility_Report_${ascii}`;
-    const previousTitle = document.title;
-    document.title = desiredTitle;
-
-    let restored = false;
-    const restore = () => {
-      if (restored) return;
-      restored = true;
-      document.title = previousTitle;
-      window.removeEventListener("afterprint", restore);
-    };
-    window.addEventListener("afterprint", restore);
-    // Safety net for browsers that don't reliably fire `afterprint`
-    // (mobile WebKit historically). The print dialog blocks the main
-    // thread, so by the time this fires the user has finished saving.
-    setTimeout(restore, 2000);
-
-    window.print();
+    if (typeof window !== "undefined") window.print();
   };
 
   const handleNew = () => {
@@ -392,13 +355,11 @@ function ReportHeader({ referenceId }: { referenceId: string }) {
  * Secondary, full-width identifier band shown just under the header.
  * Repeats the patient reference ID in a high-contrast strip so it stays
  * unmissable on every exported PDF — and so physicians can identify the
- * report at a glance without any patient name being present. The same
- * ASCII id is used as the downloaded PDF's filename.
+ * report at a glance without any patient name being present.
  */
 function PatientIdentifierBanner({ referenceId }: { referenceId: string }) {
-  const asciiRef = toAsciiReference(referenceId);
   return (
-    <div className="mb-5 rounded-2xl border border-brand-200 bg-gradient-to-l from-brand-50 via-white to-brand-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3 print:border-brand-300">
+    <div className="mb-5 rounded-2xl border border-brand-200 bg-gradient-to-l from-brand-50 via-white to-brand-50 px-4 py-3 flex flex-wrap items-center justify-between gap-2 print:border-brand-300">
       <div className="flex items-center gap-3 min-w-0">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-soft">
           <IdBadgeIcon />
@@ -415,20 +376,12 @@ function PatientIdentifierBanner({ referenceId }: { referenceId: string }) {
           </p>
         </div>
       </div>
-      <div className="flex flex-col items-end gap-0.5 min-w-0">
-        <p
-          dir="ltr"
-          className="text-base sm:text-lg font-bold text-ink-900 tracking-wider"
-        >
-          {referenceId}
-        </p>
-        <p
-          dir="ltr"
-          className="text-[10px] sm:text-[11px] uppercase tracking-[0.14em] text-ink-500"
-        >
-          {asciiRef}
-        </p>
-      </div>
+      <p
+        dir="ltr"
+        className="text-base sm:text-lg font-bold text-ink-900 tracking-wider"
+      >
+        {referenceId}
+      </p>
     </div>
   );
 }
@@ -482,25 +435,6 @@ function stableReportReference(year: number, completedAt?: number): string {
   x = Math.imul(x, 0x85ebca6b);
   const code = String((x >>> 0) % 10_000_000).padStart(7, "0");
   return `حقن-${year}-${code}`;
-}
-
-/**
- * ASCII-safe variant of the patient reference id, used exclusively for
- * download filenames and `document.title` so the saved PDF lands on
- * the user's filesystem without any non-ASCII characters that some
- * download dialogs / EMR systems mangle.
- *
- *   حقن-2026-4831907  →  PAT-2026-4831907
- *
- * The numeric tail is *identical* to the on-screen reference id, so
- * the filename and the printed banner remain trivially correlated.
- */
-function toAsciiReference(referenceId: string): string {
-  // Strip the Arabic prefix and re-attach the universal "PAT-" tag.
-  const tail = referenceId
-    .replace(/^[^\d]+/, "") // drop anything before the first digit
-    .replace(/[^A-Za-z0-9-]/g, "");
-  return `PAT-${tail}`;
 }
 
 function PredictionHero({ prediction }: { prediction: PredictionResult }) {
@@ -749,12 +683,10 @@ function CompletionActions({
   role: SpeakerRole;
 }) {
   const whatsappHref = useMemo(() => {
-    const asciiRef = toAsciiReference(referenceId);
     const message =
       `السلام عليكم،\n` +
       `حابب أشارك تقرير التقييم المبدئي للحقن المجهري الخاص بي.\n` +
-      `رقم التقرير المرجعي: ${referenceId}\n` +
-      `Patient Reference: ${asciiRef}`;
+      `رقم التقرير المرجعي: ${referenceId}`;
     const phone = (process.env.NEXT_PUBLIC_CLINIC_WHATSAPP ?? "").trim();
     const base = phone
       ? `https://wa.me/${encodeURIComponent(phone)}`
