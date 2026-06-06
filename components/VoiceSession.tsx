@@ -6,6 +6,7 @@ import VoiceOrb from "./VoiceOrb";
 import TranscriptPanel from "./TranscriptPanel";
 import FileUpload from "./FileUpload";
 import ProgressSteps from "./ProgressSteps";
+import AppFooter from "./AppFooter";
 import { handleAnswer, intro, uploadAck } from "@/lib/conversation";
 import { predict } from "@/lib/prediction";
 import { analyzeFiles } from "@/lib/fileAnalysis";
@@ -511,12 +512,7 @@ export default function VoiceSession() {
       <p className="mt-4 text-center text-[11px] text-ink-400">
         ده عرض توضيحي لأغراض العرض فقط ولا يغني عن استشارة الطبيب المختص.
       </p>
-      <p
-        dir="ltr"
-        className="mt-3 text-center text-[9px] tracking-[0.2em] uppercase text-ink-400/70"
-      >
-        Powered by <span className="font-medium text-ink-500">SERVERAT</span>
-      </p>
+      <AppFooter />
     </div>
   );
 }
