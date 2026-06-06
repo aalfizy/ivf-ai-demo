@@ -17,6 +17,7 @@ import {
 import { cancelSpeak, prefetchSpeech, speak } from "@/lib/tts-elevenlabs";
 import { clearSession, saveSession } from "@/lib/session";
 import { sanitizeAssistantForDisplay } from "@/lib/controlledOutput";
+import { isIOS } from "@/lib/platform";
 import {
   introHeadline,
   introInstruction,
@@ -31,6 +32,17 @@ type OrbState = "idle" | "listening" | "thinking" | "speaking";
 
 /** Slight, natural-feeling jitter on the “thinking” pause. */
 const thinkingDelayMs = () => 700 + Math.floor(Math.random() * 400);
+
+/**
+ * Delay between the end of TTS playback and the start of the next mic
+ * capture. iOS holds the audio session in "playback" mode for several
+ * hundred ms after an HTMLAudioElement is torn down — calling
+ * SpeechRecognition.start() during that window is silently ignored by
+ * the OS. 700 ms is the empirically-stable lower bound across iPhone
+ * 12 → 15 Pro on Safari and Chrome. Desktop keeps the original snappy
+ * 400 ms feel.
+ */
+const restartListenDelayMs = (): number => (isIOS() ? 700 : 400);
 
 const newId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -59,6 +71,18 @@ export default function VoiceSession() {
     autoListen: boolean;
   } | null>(null);
 
+  /**
+   * iOS Safari / iOS Chrome sometimes refuses to (re)start the mic
+   * after a TTS playback even when we tear the audio session down
+   * properly. When that happens the SpeechRecognition watchdog fires
+   * a `start_timeout` error and we surface a "🎙 متابعة الاستماع"
+   * button. Tapping it is a fresh user gesture that bypasses the
+   * audio-session lock and resumes the conversation.
+   */
+  const [blockedListen, setBlockedListen] = useState(false);
+  /** Counts consecutive iOS silent-start failures to widen the next delay. */
+  const listenFailCountRef = useRef(0);
+
   const stopListeningRef = useRef<null | (() => void)>(null);
   const stateRef = useRef({ step, answers, muted, orbState });
   stateRef.current = { step, answers, muted, orbState };
@@ -72,8 +96,15 @@ export default function VoiceSession() {
    * gesture. We "unlock" the audio output by playing a tiny silent WAV
    * the first time the user taps the orb — once unlocked, every later
    * `Audio.play()` in the session is permitted.
+   *
+   * iOS also requires a separate "audio session warmup" for the mic to
+   * coexist with playback. We pre-acquire the microphone with
+   * `getUserMedia` once (and immediately release the tracks) so the OS
+   * audio session opens in "PlayAndRecord" mode — this dramatically
+   * improves the auto-resume reliability after each TTS utterance.
    */
   const audioUnlockedRef = useRef(false);
+  const micWarmedRef = useRef(false);
   const unlockAudio = useCallback(() => {
     if (audioUnlockedRef.current) return;
     audioUnlockedRef.current = true;
@@ -103,6 +134,39 @@ export default function VoiceSession() {
     } catch (err) {
       console.warn("[Audio] unlock attempt threw:", err);
     }
+
+    // Mic warmup — synchronous from the same user gesture. The audio
+    // session opens once and stays in a state that allows fast
+    // playback↔record transitions for the rest of the session.
+    if (
+      !micWarmedRef.current &&
+      typeof navigator !== "undefined" &&
+      navigator.mediaDevices &&
+      typeof navigator.mediaDevices.getUserMedia === "function"
+    ) {
+      micWarmedRef.current = true;
+      navigator.mediaDevices
+        .getUserMedia({ audio: true })
+        .then((stream) => {
+          console.log("[Audio] mic warmed (session opened PlayAndRecord)");
+          // Immediately release — SpeechRecognition will reacquire on
+          // its own. We only needed the audio session to open once.
+          stream.getTracks().forEach((t) => {
+            try {
+              t.stop();
+            } catch {
+              /* ignore */
+            }
+          });
+        })
+        .catch((err: DOMException) => {
+          console.warn(
+            `[Audio] mic warmup rejected: ${err?.name ?? "Error"} — ${
+              err?.message ?? ""
+            }`
+          );
+        });
+    }
   }, []);
 
   useEffect(() => {
@@ -125,16 +189,30 @@ export default function VoiceSession() {
   }, []);
 
   const beginListening = useCallback(() => {
+    // Defensive: tear down any previous recognition instance before
+    // starting a new one. Protects against the iOS retry path
+    // accidentally stacking two live SpeechRecognition objects, whose
+    // overlapping `onend`/`onerror` callbacks would flap the orb state.
+    stopListeningRef.current?.();
+    stopListeningRef.current = null;
+
     setError(null);
     setInterim("");
+    setBlockedListen(false);
     setOrbState("listening");
 
     let gotFinal = false;
     stopListeningRef.current = startListening({
       lang: "ar-EG",
       onInterim: (t) => setInterim(t),
+      onStart: () => {
+        // Successful mic open — reset the iOS failure counter so the
+        // next utterance restarts at the default delay.
+        listenFailCountRef.current = 0;
+      },
       onFinal: (text) => {
         gotFinal = true;
+        listenFailCountRef.current = 0;
         setInterim("");
         handleUserText(text);
       },
@@ -146,9 +224,34 @@ export default function VoiceSession() {
           }, 300);
           return;
         }
+        // iOS silent-block: the recognition started but the OS held the
+        // audio session and `onstart` never fired. Surface a manual
+        // recovery button instead of leaving the orb stuck on "Listening".
+        if (err === "start_timeout" || err === "start_failed") {
+          listenFailCountRef.current += 1;
+          console.warn(
+            `[VoiceSession] STT start blocked (${err}) — attempt ${listenFailCountRef.current}`
+          );
+          // One automatic retry with a longer cool-down before falling
+          // back to the manual button — handles transient iOS hiccups.
+          if (listenFailCountRef.current === 1) {
+            setOrbState("idle");
+            setTimeout(() => {
+              if (stateRef.current.step !== "done") beginListening();
+            }, 900);
+            return;
+          }
+          setOrbState("idle");
+          setBlockedListen(true);
+          return;
+        }
         const role = stateRef.current.answers.speakerRole ?? "unknown";
         if (err === "not-allowed" || err === "service-not-allowed") {
           setError(micPermissionDenied(role));
+        } else if (err === "audio-capture") {
+          // iOS sometimes emits this when another audio stream is still
+          // attached. Treat as a silent-block too.
+          setBlockedListen(true);
         } else if (err !== "aborted") {
           setError(micGenericError(role));
         }
@@ -209,7 +312,10 @@ export default function VoiceSession() {
           return;
         }
         setOrbState("idle");
-        if (autoListen) setTimeout(() => beginListening(), 400);
+        // Longer delay on iOS so the audio session has time to
+        // transition out of "playback" mode before we open the mic —
+        // see `restartListenDelayMs` for the rationale.
+        if (autoListen) setTimeout(() => beginListening(), restartListenDelayMs());
       };
 
       if (stateRef.current.muted) {
@@ -356,6 +462,24 @@ export default function VoiceSession() {
     speakAssistant(text, autoListen);
   }, [blockedAudio, speakAssistant, unlockAudio]);
 
+  /**
+   * iOS-only recovery: when the audio session refuses to release after
+   * a TTS playback, the mic never opens automatically. This handler is
+   * invoked by a fresh user tap on the "🎙 متابعة الاستماع" button —
+   * iOS treats that as a new gesture and unblocks the mic.
+   */
+  const handleManualListen = useCallback(() => {
+    console.log("[VoiceSession] manual resume-listen tapped");
+    listenFailCountRef.current = 0;
+    audioUnlockedRef.current = false;
+    micWarmedRef.current = false;
+    unlockAudio();
+    setBlockedListen(false);
+    // Small grace period for the warmup `getUserMedia` to flip the iOS
+    // audio session back to PlayAndRecord before the real STT start.
+    setTimeout(() => beginListening(), 250);
+  }, [beginListening, unlockAudio]);
+
   const handleReset = () => {
     cancelSpeak();
     stopListening();
@@ -367,6 +491,8 @@ export default function VoiceSession() {
     setError(null);
     setOrbState("idle");
     setBlockedAudio(null);
+    setBlockedListen(false);
+    listenFailCountRef.current = 0;
     pendingAckRef.current = null;
     clearSession();
   };
@@ -448,6 +574,18 @@ export default function VoiceSession() {
             >
               <span className="text-lg">🔊</span>
               <span>تشغيل الصوت</span>
+            </button>
+          )}
+
+          {blockedListen && !blockedAudio && (
+            <button
+              type="button"
+              onClick={handleManualListen}
+              className="animate-fade-in-up flex items-center gap-2 rounded-2xl bg-gradient-to-br from-mint-500 to-mint-600 px-5 py-3 text-white shadow-soft hover:shadow-md hover:scale-[1.02] active:scale-[0.99] transition text-sm font-semibold"
+              aria-label="متابعة الاستماع"
+            >
+              <span className="text-lg">🎙</span>
+              <span>متابعة الاستماع</span>
             </button>
           )}
 

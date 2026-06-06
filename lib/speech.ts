@@ -44,6 +44,19 @@ export interface ListenOptions {
   onStart?: () => void;
 }
 
+/**
+ * Window after `rec.start()` within which `onstart` MUST fire. On iOS
+ * Safari / iOS Chrome, when the audio session is still held by a prior
+ * TTS playback, `start()` returns successfully but the OS silently
+ * suppresses the recognition — `onstart` never fires and the mic
+ * captures nothing. We surface this as a synthetic `start_timeout`
+ * error so the UI can show a "tap to continue" recovery button.
+ */
+const START_WATCHDOG_MS = 1800;
+
+/** Retry `start()` once on InvalidStateError after this delay. */
+const RESTART_RETRY_MS = 350;
+
 export function startListening(opts: ListenOptions): () => void {
   const Ctor = getRecognitionCtor();
   if (!Ctor) {
@@ -59,8 +72,21 @@ export function startListening(opts: ListenOptions): () => void {
   let finalText = "";
   let stopped = false;
   let finalized = false;
+  let started = false;
+  let watchdog: ReturnType<typeof setTimeout> | null = null;
 
-  rec.onstart = () => opts.onStart?.();
+  const clearWatchdog = () => {
+    if (watchdog) {
+      clearTimeout(watchdog);
+      watchdog = null;
+    }
+  };
+
+  rec.onstart = () => {
+    started = true;
+    clearWatchdog();
+    opts.onStart?.();
+  };
 
   rec.onresult = (e: Any) => {
     let interim = "";
@@ -76,9 +102,13 @@ export function startListening(opts: ListenOptions): () => void {
     if (combined) opts.onInterim?.(combined);
   };
 
-  rec.onerror = (e: Any) => opts.onError?.(e?.error || "unknown_error");
+  rec.onerror = (e: Any) => {
+    clearWatchdog();
+    opts.onError?.(e?.error || "unknown_error");
+  };
 
   rec.onend = () => {
+    clearWatchdog();
     if (stopped) return;
     if (finalText.trim() && !finalized) {
       finalized = true;
@@ -87,14 +117,44 @@ export function startListening(opts: ListenOptions): () => void {
     opts.onEnd?.();
   };
 
-  try {
-    rec.start();
-  } catch {
-    /* ignore repeated start */
-  }
+  // Robust start: on iOS the `start()` call can throw `InvalidStateError`
+  // if a prior recognition is still releasing, OR it can succeed but
+  // never deliver an `onstart` event (silent OS-level block). We handle
+  // both: retry once on the throw, and arm a watchdog for the silent case.
+  const tryStart = (attempt: number) => {
+    try {
+      rec.start();
+    } catch (err) {
+      const name = (err as { name?: string })?.name ?? "Error";
+      console.warn(`[Speech] rec.start() threw ${name} (attempt ${attempt})`);
+      if (name === "InvalidStateError" && attempt < 2 && !stopped) {
+        setTimeout(() => tryStart(attempt + 1), RESTART_RETRY_MS);
+        return;
+      }
+      opts.onError?.("start_failed");
+      return;
+    }
+    // Arm the silent-start watchdog. If `onstart` never fires, the OS
+    // is blocking us — most commonly iOS holding the audio session.
+    watchdog = setTimeout(() => {
+      if (started || stopped) return;
+      console.warn(
+        "[Speech] start watchdog fired — onstart never arrived (likely iOS audio session)"
+      );
+      try {
+        rec.abort?.();
+      } catch {
+        /* ignore */
+      }
+      opts.onError?.("start_timeout");
+    }, START_WATCHDOG_MS);
+  };
+
+  tryStart(1);
 
   return () => {
     stopped = true;
+    clearWatchdog();
     try {
       rec.stop();
     } catch {

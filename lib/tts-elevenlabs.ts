@@ -213,6 +213,46 @@ function cacheUrl(text: string, url: string) {
 
 const PRE_PLAY_DELAY_MS = 350;
 
+/**
+ * Fully release an HTMLAudioElement so the underlying OS audio
+ * session can transition from "playback" back to "record". This is
+ * the critical fix for iOS Safari / iOS Chrome:
+ *
+ *   On WebKit-iOS, simply calling `audio.pause()` and discarding the
+ *   reference is NOT enough — the audio session remains held until the
+ *   element's media source is detached. While that session is held,
+ *   `SpeechRecognition.start()` is silently muted by the OS, which
+ *   manifests as: the orb shows "Listening" but the mic never captures
+ *   any sound and `onstart` may not even fire.
+ *
+ *   `removeAttribute("src")` + `load()` is the documented WebKit
+ *   incantation to tear down the source synchronously.
+ */
+function teardownAudio(audio: HTMLAudioElement | null): void {
+  if (!audio) return;
+  try {
+    audio.pause();
+  } catch {
+    /* ignore */
+  }
+  try {
+    // Mute first so any tail sample is silenced even if removal is async.
+    audio.muted = true;
+    audio.volume = 0;
+  } catch {
+    /* ignore */
+  }
+  try {
+    audio.removeAttribute("src");
+    audio.load(); // forces WebKit to release the media source
+  } catch {
+    /* ignore */
+  }
+  audio.onplay = null;
+  audio.onended = null;
+  audio.onerror = null;
+}
+
 async function playUrl(url: string, opts: SpeakOptions): Promise<void> {
   if (PRE_PLAY_DELAY_MS > 0) {
     await new Promise((r) => setTimeout(r, PRE_PLAY_DELAY_MS));
@@ -232,6 +272,12 @@ async function playUrl(url: string, opts: SpeakOptions): Promise<void> {
     const finish = (errored: boolean) => {
       if (settled) return;
       settled = true;
+      // CRITICAL for iOS: fully release the media source BEFORE we
+      // notify the caller that playback is done. The caller will
+      // typically restart the mic immediately after, and iOS will
+      // silently swallow that mic start unless the audio session
+      // has actually been released.
+      teardownAudio(audio);
       if (currentAudio === audio) currentAudio = null;
       if (errored) opts.onError?.();
       else opts.onEnd?.();
@@ -282,16 +328,7 @@ export function cancelSpeak(): void {
   queue.length = 0;
 
   if (currentAudio) {
-    try {
-      currentAudio.pause();
-    } catch {
-      /* ignore */
-    }
-    try {
-      currentAudio.src = "";
-    } catch {
-      /* ignore */
-    }
+    teardownAudio(currentAudio);
     currentAudio = null;
   }
   if (currentRequest) {
